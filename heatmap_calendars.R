@@ -22,6 +22,7 @@ setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoR
 #get buttonbush ind pm
 #get buttonbush intensity pm
 species_list <- npn_species()
+#Find Time to Restore - priority species - https://docs.google.com/spreadsheets/d/1WyxsCqZAAATIgZvR5ewNcZkaN2mumVi2d1vFw8I0HJo/edit#gid=0
 
 
 species <- c(931,916,201,202,203,224,200,204,845,207,781,197,1334,1163,186,1167)
@@ -38,26 +39,24 @@ df <- npn_download_status_data(request_source="Alyssa",
 write.csv(df, file="status_16spp_2017-2023.csv")
 df <- (read.csv("status_16spp_2017-2023.csv"))
 
-#df <- (read.csv("status_buttonbush2017-2022.csv"))
-#df <- (read.csv("easternpurpleconeflwr2013-2022.csv"))
-#df <- (read.csv("sunflower2013-2022.csv"))
-
 #format dates as needed and remove uncertain (?) records 
 df <- df %>%
   mutate(year = lubridate::year(observation_date)) %>%
   mutate(month = lubridate::month(observation_date)) %>%
   mutate(week = lubridate::week(observation_date))  %>%
-  filter(phenophase_status != -1) %>%
-  filter(!species_id %in% c(1167,1163,197,931,202))
+  filter(phenophase_status != -1) # -1 is when people reported ?
+  #filter(!species_id %in% c(1167,1163,197,931,202))
+
+str(df)
+colnames(df)
 
 df$common_name <- as.factor(df$common_name)
+df$phenophase_status <- as.numeric(df$phenophase_status)
   
-#Filters used to get buttonbush observer variability plot  
+#Ignore for now - filters used to get buttonbush observer variability plot  
   filter(individual_id == 141920) %>% 
   filter(observedby_person_id < 43389, observedby_person_id > 38000, observedby_person_id != 39173) %>% 
   filter(year !=2017, year !=2022)
-
-df$phenophase_status <- as.numeric(df$phenophase_status)
 
 #calculate the proportion of records in to the total records by week
 df1 <- df %>%
@@ -67,7 +66,7 @@ df1 <- df %>%
   mutate(proportion = sum_pp/num_records) %>% 
   ungroup()
 
-#wrangle peak dataset
+#Ignore for now - wrangle peak dataset
 df_peak <- (read.csv("buttonbush2013-2022_w_peak.csv"))
 df_peak <- df_peak %>%
   mutate(week = lubridate::week(observation_date))  %>%
@@ -82,7 +81,7 @@ df_peak <- df_peak %>%
   filter(!is.na(proportion)) %>% 
   ungroup()
 
-#hm, there are some NAs unexpected in both estimate of open flowers and in proportions - why?
+#ignore for now - hm, there are some NAs unexpected in both estimate of open flowers and in proportions - why?
 str(df_peak)
 
 p = ggplot() +
@@ -95,7 +94,7 @@ p = ggplot() +
 plot(p)
 
 #community calendar May 2023
-p = ggplot(df1) +
+p <- ggplot(df1) +
   geom_tile(aes(x = week, y = phenophase_description, fill = proportion)) +
   scale_fill_gradient(low = "grey", high = "purple", (name = "Proportion")) +
   facet_grid(df1$common_name) +
