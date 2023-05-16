@@ -17,34 +17,40 @@ rm(list= ls())
 
 
 #this script is to develop the Time to Restore prototype calendars of type, heatmap (Alyssa, Sept 2022)
-setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/TimetoRestore/Data")
+setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data")
 
 #get buttonbush ind pm
 #get buttonbush intensity pm
 species_list <- npn_species()
 
+
+species <- c(931,916,201,202,203,224,200,204,845,207,781,197,1334,1163,186,1167)
+
 df <- npn_download_status_data(request_source="Alyssa",
-                               years=c(2017:2022),
-                               species_ids = c(201), # species codes
-                               states = "LA",
+                               years=c(2017:2023),
+                               species_ids = c(paste0(species)), # species codes
+                               state = c("TX", "LA", "OK", "NM"),
                                additional_fields = c("observedby_person_id"),
                                phenophase_ids= c(501), # open flowers 
                                climate_data = FALSE)
 
 
-write.csv(df, file="status_buttonbush2017-2022.csv")
+write.csv(df, file="status_16spp_2017-2023.csv")
+df <- (read.csv("status_16spp_2017-2023.csv"))
 
-df <- (read.csv("status_buttonbush2017-2022.csv"))
-df <- (read.csv("easternpurpleconeflwr2013-2022.csv"))
-df <- (read.csv("sunflower2013-2022.csv"))
+#df <- (read.csv("status_buttonbush2017-2022.csv"))
+#df <- (read.csv("easternpurpleconeflwr2013-2022.csv"))
+#df <- (read.csv("sunflower2013-2022.csv"))
 
 #format dates as needed and remove uncertain (?) records 
 df <- df %>%
   mutate(year = lubridate::year(observation_date)) %>%
   mutate(month = lubridate::month(observation_date)) %>%
   mutate(week = lubridate::week(observation_date))  %>%
-  filter(latitude < 33)%>%
-  filter(phenophase_status != -1)
+  filter(phenophase_status != -1) %>%
+  filter(!species_id %in% c(1167,1163,197,931,202))
+
+df$common_name <- as.factor(df$common_name)
   
 #Filters used to get buttonbush observer variability plot  
   filter(individual_id == 141920) %>% 
@@ -54,8 +60,8 @@ df <- df %>%
 df$phenophase_status <- as.numeric(df$phenophase_status)
 
 #calculate the proportion of records in to the total records by week
-df <- df %>%
-  group_by(week) %>%
+df1 <- df %>%
+  group_by(week, common_name) %>%
   mutate(num_records = n()) %>%
   mutate(sum_pp = sum(phenophase_status))%>% 
   mutate(proportion = sum_pp/num_records) %>% 
@@ -86,6 +92,16 @@ p = ggplot() +
   #facet_grid(df$observedby_person_id) +
   labs(y = "  ", x = " ") +
   theme(axis.text.x = element_blank(),axis.text.y = element_blank(),axis.ticks = element_blank(), legend.position="left") 
+plot(p)
+
+#community calendar May 2023
+p = ggplot(df1) +
+  geom_tile(aes(x = week, y = phenophase_description, fill = proportion)) +
+  scale_fill_gradient(low = "grey", high = "purple", (name = "Proportion")) +
+  facet_grid(df1$common_name) +
+  labs(x = " ") +
+  theme(axis.text.x = element_blank(),axis.text.y = element_blank(),axis.ticks = element_blank(), legend.position="left") +
+  theme(axis.text = element_text(size = 13))
 plot(p)
 
 p2 = ggplot() +

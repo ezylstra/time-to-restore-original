@@ -12,17 +12,19 @@ rm(list=ls()[ls()!= "df"])
 #### discontinuous peaks and a csv file with peak onset/end duration and a flag for discontinuous peaks and multiple observers
 ### Contributors: Hayley Limes, Alyssa Rosemartin, Jeff Oliver
 
-setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/TimetoRestore/Peak/Data")
+setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data")
 
 species_list <- npn_species()
 
 #Download data
 df <- npn_download_status_data(request_source="Alyssa",
                                 years=c(2013:2022),
-                                species_ids = c(201), # species codes
+                                species_ids = c(931,916,201,202,203,224,200,204), # species codes
                                 additional_fields = c("observedby_person_id"),
                                 phenophase_ids= c(501,500), # open flowers and flowers or flower buds
                                 climate_data = FALSE)
+
+
 
 #Little side venture looking at dupes that come in fresh from the web service
 df1 <- subset(df, select = c(2:22)) #drop Observation_ID field
@@ -31,9 +33,9 @@ df3 <- df1[!duplicated(df1)] #original dataframe w dupes removed
 
 
 #write out CSV so you don't have to call it back
-write.csv(df, file="buttonbush2013-2022.csv")
+write.csv(df, file="8priority_spp_status_2013-2022.csv")
 
-df <- (read.csv("buttonbush2013-2022.csv"))
+df <- (read.csv("8priority_spp_status_2013-2022.csv"))
 
 #Format data
 #Code NAs correctly, extract year from the date
@@ -120,7 +122,7 @@ df <- df %>%
 
 #Now remove the columns you no longer need, focused on Open Flower Estimate by Ind/date
 colnames(df) 
-df <- subset(df, select = c(3,4,5,6,7,8,9,10,11,12,13,14,18,20,24))
+df <- subset(df, select = c(3:14,18,23))
 
 #FLORAL RESOURCES - optional
 #creates column to flag all observations with over 500 flowers - substantial floral resources available
@@ -142,11 +144,11 @@ df <- df %>%
   group_by(year, individual_id) %>%
   mutate(near_max_threshold = max_flowers*0.75)%>%
   mutate(is_near_max = if_else(open_flower_estimate > near_max_threshold, 1, 0))%>%
-  #mutate(peak = if_else(is_near_max == "1", 1, 0))%>% #line to use without floral threshold
-  mutate(peak = if_else(is_near_max == "1"| over_500 == "1", 1, 0))%>% #line to use with floral threshold
+  mutate(peak = if_else(is_near_max == "1", 1, 0))%>% #line to use without floral threshold
+  #mutate(peak = if_else(is_near_max == "1"| over_500 == "1", 1, 0))%>% #line to use with floral threshold
   ungroup()
 
-write.csv(df, file="buttonbush2013-2022_w_peak.csv")
+write.csv(df, file="8priority_spp_max_2013-2022_w_peak.csv")
 
 #Add count of records in and out of peak
 df$peak <- as.numeric(df$peak) # watch out - seems like this guy sometimes changes peaks from 0/1 to 1/2
@@ -163,10 +165,10 @@ df <- df %>%
 # int_pmetric is the summary table - which gives the start/end/duration and discont flag by ind-year
 int_pmetric <- df %>%
   filter(peak == 1) %>%
-  group_by(state, latitude, site_id, common_name, individual_id, year, number_observers) %>%
-  summarize(onset_doy = min(day_of_year, na.rm = TRUE),
-            end_doy = max(day_of_year, na.rm = TRUE)) %>%
-  mutate(duration = end_doy-onset_doy + 1) %>% # the +1 is so that there is no duration of zero, 1 day peaks
+  group_by(site_id, common_name, individual_id, year) %>% #removed # observers, state and latitude from this, can add back
+  summarize(peak_onset_doy = min(day_of_year, na.rm = TRUE),
+            peak_end_doy = max(day_of_year, na.rm = TRUE)) %>%
+  mutate(peak_duration = peak_end_doy-peak_onset_doy + 1) %>% # the +1 is so that there is no duration of zero, 1 day peaks
   ungroup()
 
 # Add flags if any of the not peak values lie within the window of 
@@ -180,8 +182,8 @@ for (i in 1:nrow(int_pmetric)) {
   ind.i <- int_pmetric$individual_id[i]
   year.i <- int_pmetric$year[i]
   # Pull out start and end of peak for this individual / year combination
-  onset.i <- int_pmetric$onset_doy[i]
-  enddate.i <- int_pmetric$end_doy[i]
+  onset.i <- int_pmetric$peak_onset_doy[i]
+  enddate.i <- int_pmetric$peak_end_doy[i]
   #cat("i=", i, "\n")- this is code to help you watch the iterating loop go by
   
   # Subset the original data (df) for just this individual / year
@@ -203,7 +205,7 @@ for (i in 1:nrow(int_pmetric)) {
 
 #With the code above we have successfully flagged our Intensity phenometric data with discontinuous flags
 #the resulting int_pmetric file is essentially the prototype for individual intensity phenometrics 
-write_csv(int_pmetric, 'intensity_phenometrics_buttonbush_2013-2022.csv')
+write.csv(int_pmetric, 'intensity_phenometrics_8priority_spp_2013-2022.csv')
 
 #Now back over to the base dataset, df, where we want to get the discontinuous flag and plot data, to reality check
 #Our intensity phenometrics, decide if we want to include all ind-year combos

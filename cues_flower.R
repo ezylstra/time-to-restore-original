@@ -68,8 +68,37 @@ df_complete <- rbind(df2022_daymet, df)
 write.csv(df_complete, file="8priority_spp_2009-2022.csv")
 
 df_complete <- (read.csv("8priority_spp_2009-2022.csv"))
+df_complete = df_complete %>% 
+  subset(phenophase_description == c('Open flowers')) %>% 
+  group_by(individual_id,first_yes_year) %>%
+  filter(first_yes_doy == min(first_yes_doy))
 
-EPC = df_complete %>% subset(phenophase_category == 'Flowers' & species_id == 202) 
+df_complete$ind_year <- paste0(df_complete$individual_id, "_", df_complete$first_yes_year)
+
+#read in the peak data created using peak_phenometrics_flower.R
+df_peak <- (read.csv("intensity_phenometrics_8priority_spp_2013-2022.csv"))
+df_peak$ind_year <- paste0(df_peak$individual_id, "_", df_peak$year)
+
+df_more_complete <- merge(df_complete, df_peak, by = c("ind_year"), all=TRUE)
+
+colnames(df_more_complete)
+df_more_complete <- select(df_more_complete, -c(2,43:46))
+colnames(df_more_complete) <- sub("\\.x","",colnames(df_more_complete))
+
+write.csv(df_more_complete, file="8priority_spp_w_peak_2009-2022.csv")
+df_more_complete <- (read.csv("8priority_spp_w_peak_2009-2022.csv"))
+
+df_more_complete = df_more_complete %>% 
+  subset(numdays_since_prior_no != -9999) %>%
+  subset(numdays_since_prior_no < 14)
+
+
+#weird to me that this gives you a row count, rather than a sum of peak dates.. but it does what i need
+sum(!is.na(df_more_complete$peak_onset_doy))
+
+hist(df_more_complete$numdays_since_prior_no)
+
+df <- df_more_complete %>% subset(species_id == 201) 
 
 #Calls that can be used to see how much data in the project region/lower lats:
 #subset(state == c("TX", "LA", "OK", "NM")) 
@@ -80,16 +109,18 @@ EPC = df_complete %>% subset(phenophase_category == 'Flowers' & species_id == 20
 #filter(first_yes_doy == min(first_yes_doy))
 
 #viz amt of data by year
-hist(EPC$first_yes_year)
+hist(df$first_yes_year)
+hist(df$first_yes_doy)
+hist(df$peak_onset_doy)
 
 #set site id to factor so it can be used as a random factor
-EPC$site_id_factor <- as.factor(EPC$site_id)
+df$site_id_factor <- as.factor(df$site_id)
 
 #create five lat bands named by major mid western cities for looking at temp sensitivity by lat
-EPC$lat_bans <- as.factor(cut(EPC$latitude, c(-Inf,30,35,40,45,Inf), c("Orlando", "Jackson", "OKCity", "Madison", "Bismark")))
+df$lat_bans <- as.factor(cut(df$latitude, c(-Inf,30,35,40,45,Inf), c("Orlando", "Jackson", "OKCity", "Madison", "Bismark")))
   
 #explore records with observer conflicts
-conflict_summary <- EPC %>%
+conflict_summary <- df %>%
   count(phenophase_category, observed_status_conflict_flag) %>%
   group_by(phenophase_category) %>%
   mutate(observed_status_conflict_flag=recode(
@@ -98,132 +129,231 @@ conflict_summary <- EPC %>%
 
 #decide not to remove any conflicting records, because represent less than 4% of records, thus Yes will override a No
 
-#limit to open flowers
-OpenFlowers  <- EPC %>% subset(phenophase_description == c('Open flowers')) 
-
 # dropping very warm spring outlier, didn't effect the model, didn't keep
-#OpenFlowers_NoOutlier <- OpenFlowers %>% subset(tmin_spring < 15)
+#NoOutlier <- df %>% subset(tmin_spring < 15)
 
 #determine how many site-years there are - this is only dif from # records where there are multiple onsets/year
-onsets_summary <- OpenFlowers %>%
+onsets_summary <- df %>%
   group_by(site_id, phenophase_description) %>%
-  summarize(years = n_distinct(first_yes_year))
+  summarize(years = n_distinct(first_yes_year)) 
 
 sum(onsets_summary$years)
 
+#weird to me that this gives you a row count, rather than a sum of peak dates.. but it does what i need
+sum(!is.na(df$peak_onset_doy))
+
 #look at distribution of data
 
-par(mfrow = c(1, 2))
-hist(OpenFlowers$first_yes_doy, main = "Day of Year")
-hist(OpenFlowers$latitude, main = "Latitude")
+par(mfrow = c(2,2))
+hist(df$first_yes_doy, main = "Day of Year")
+hist(df$peak_onset_doy, main = "Peak Onset")
+hist(df$peak_duration, main = "Peak Duration")
+hist(df$latitude, main = "Latitude")
 par(mfrow = c(2, 2))
-hist(OpenFlowers$tmax_spring, main = "Spring Tmax")
-hist(OpenFlowers$tmax_fall, main = "Fall Tmax")
-hist(OpenFlowers$tmax_summer, main = "Summer Tmax")
-hist(OpenFlowers$tmax_winter, main = "Winter Tmax")
+hist(df$tmax_spring, main = "Spring Tmax")
+hist(df$tmax_fall, main = "Fall Tmax")
+hist(df$tmax_summer, main = "Summer Tmax")
+hist(df$tmax_winter, main = "Winter Tmax")
 par(mfrow = c(2, 2))
-hist(OpenFlowers$tmin_spring, main = "Spring Tmin")
-hist(OpenFlowers$tmin_fall, main = "Fall Tmin")
-hist(OpenFlowers$tmin_summer, main = "Summer Tmin")
-hist(OpenFlowers$tmin_winter, main = "Winter Tmin")
+hist(df$tmin_spring, main = "Spring Tmin")
+hist(df$tmin_fall, main = "Fall Tmin")
+hist(df$tmin_summer, main = "Summer Tmin")
+hist(df$tmin_winter, main = "Winter Tmin")
 par(mfrow = c(2, 2))
-hist(OpenFlowers$prcp_spring, main = "Spring Precip")
-hist(OpenFlowers$prcp_fall, main = "Fall Precip")
-hist(OpenFlowers$prcp_summer, main = "Summer Precip")
-hist(OpenFlowers$prcp_winter, main = "Winter Precip")
+hist(df$prcp_spring, main = "Spring Precip")
+hist(df$prcp_fall, main = "Fall Precip")
+hist(df$prcp_summer, main = "Summer Precip")
+hist(df$prcp_winter, main = "Winter Precip")
 
 #Simple Linear Regression
 #plot a linear model of first day that "open flowers" were observed against climate variables
 
-ggplot(data = OpenFlowers, aes(x = tmin_spring, y = first_yes_doy)) +
+ggplot(data = df, aes(x = tmin_spring, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = tmax_spring, y = first_yes_doy)) +
+ggplot(data = df, aes(x = tmax_spring, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = tmax_winter, y = first_yes_doy)) +
+ggplot(data = df, aes(x = tmin_winter, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = tmin_winter, y = first_yes_doy)) +
+ggplot(data = df, aes(x = tmax_winter, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = tmax_fall, y = first_yes_doy)) +
+ggplot(data = df, aes(x = tmin_fall, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = tmin_fall, y = first_yes_doy)) +
+ggplot(data = df, aes(x = tmax_fall, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = tmax_summer, y = first_yes_doy)) +
+ggplot(data = df, aes(x = tmin_summer, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = tmin_summer, y = first_yes_doy)) +
+ggplot(data = df, aes(x = tmax_summer, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = prcp_winter, y = first_yes_doy)) +
+ggplot(data = df, aes(x = prcp_spring, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = prcp_spring, y = first_yes_doy)) +
+ggplot(data = df, aes(x = prcp_winter, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = prcp_fall, y = first_yes_doy)) +
+ggplot(data = df, aes(x = prcp_fall, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = OpenFlowers, aes(x = prcp_summer, y = first_yes_doy)) +
+ggplot(data = df, aes(x = prcp_summer, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-#relevant predictors - tmin_spring, tmax_spring, tmax_winter, tmin_winter, tmax_summer, tmin_summer, tmax_fall, tmin_fall, prcp_fall,prcp_summer
 
-#create a model object for this linear model and then summarize it 
-linear_model <- lm(first_yes_doy~tmin_spring, data = OpenFlowers)
-summary(linear_model)
+#FOR PEAK
+ggplot(data = df, aes(x = tmin_spring, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-plot(linear_model, which = 2)
+ggplot(data = df, aes(x = tmax_spring, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-# check for normally distributed residuals (to meet assumptions, should be normal)
-hist(model$residuals, main = "Residuals Histogram")
+ggplot(data = df, aes(x = tmax_winter, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-#check for normality in distribution of residuals with Shapiro Wilks, pvalue should be >0.05 if the distribution is normal
-shapiro.test(model$residuals) 
-##doesn't pass this test - points to non-parametric tests
+ggplot(data = df, aes(x = tmin_winter, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-#check for patterns in residuals (to meet assumptions, shd be random)
-plot(model$residuals, pch = 16, col = "pink", main = "Residuals Plot")
+ggplot(data = df, aes(x = tmax_fall, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = tmin_fall, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = tmax_summer, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = tmin_summer, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = prcp_winter, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = prcp_spring, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = prcp_fall, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = prcp_summer, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
 
-#Kendall–Theil Sen Siegel nonparametric linear regression
-#see https://rcompanion.org/handbook/F_12.html - uses Siegel estimator by default
+#FOR PEAK DURATION 
+ggplot(data = df, aes(x = tmin_spring, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-siegel_model = mblm(first_yes_doy~tmin_spring, data=OpenFlowers)
-summary(siegel_model)
+ggplot(data = df, aes(x = tmax_spring, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-plot(first_yes_doy~tmax_spring, data=OpenFlowers, pch  = 16)
-abline(siegel_model, col="blue",lwd=2)
+ggplot(data = df, aes(x = tmax_winter, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-#median absolute deviation is pretty large, otherwise seems a decent model
+ggplot(data = df, aes(x = tmin_winter, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = tmax_fall, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = tmin_fall, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = tmax_summer, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = tmin_summer, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = prcp_winter, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = prcp_spring, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = prcp_fall, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df, aes(x = prcp_summer, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+
+#relevant predictors - https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=1084297830
 
 #Linear Mixed Effect Regression
 #Individual plants at the same site are likely to behave similarly - site should probably be a random effect
@@ -236,19 +366,19 @@ abline(siegel_model, col="blue",lwd=2)
 # and https://mspeekenbrink.github.io/sdam-r-companion/linear-mixed-effects-models.html
 
 #look at how variables range at sites - helps to decide if site should indeed be a random effect
-boxplot(first_yes_doy ~ site_id, data = OpenFlowers)
-boxplot(latitude ~ site_id, data = OpenFlowers)
-boxplot(tmin_spring ~ site_id, data = OpenFlowers)
-boxplot(first_yes_doy ~ state, data = OpenFlowers)
+boxplot(first_yes_doy ~ site_id, data = df)
+boxplot(latitude ~ site_id, data = df)
+boxplot(tmin_spring ~ site_id, data = df)
+boxplot(first_yes_doy ~ state, data = df)
 
 
 #model 1, first yes predicted by tmin_spring, with site as a random effect
-lmer1 <- lmer(first_yes_doy~tmin_spring + (1| site_id_factor), data = OpenFlowers)
+lmer1 <- lmer(peak_onset_doy~tmin_spring + (1| site_id_factor), data = df)
 summary(lmer1)
 
-#REML criterion at convergence: 2040 
-#(compare these arcoss models - looking for lowest)
-#proportion of variance from sites ~1/3 
+#REML criterion at convergence: 302
+#(compare these across models - looking for lowest)
+#proportion of variance from sites ~1/4
 #(you get this from the Random Effects section of the model summary - Random Effects - the site_id variance vs the site_id + residual variance
 #(ie, of all the variance how much is attributable to site)
 
@@ -257,11 +387,11 @@ qqnorm(resid(lmer1))
 qqline(resid(lmer1))  
 
 #model 2
-lmer2 <- lmer(first_yes_doy~tmin_spring + prcp_winter + (1| site_id_factor), data = OpenFlowers)
+lmer2 <- lmer(peak_onset_doy~tmin_spring + prcp_summer + (1| site_id_factor), data = df)
 summary(lmer2)
 
-#REML criterion at convergence: 2045
-#proportion of variance from sites ~1/3
+#REML criterion at convergence: 300
+#proportion of variance from sites ~1/4
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer2))
@@ -271,14 +401,14 @@ qqline(resid(lmer2))
 #make the more complex model the first argument
 anova(lmer2, lmer1)
 
-#adding winter prcp does not improve the model (P ChiSq 0.74)
+#adding summer prcp does  improve the model (P ChiSq 0.95)
 
 #model 3
-lmer3 <- lmer(first_yes_doy~tmin_spring + tmin_winter + (1| site_id_factor), data = OpenFlowers)
+lmer3 <- lmer(peak_onset_doy~tmin_spring + tmin_winter + (1| site_id_factor), data = df)
 summary(lmer3)
 
-#REML criterion at convergence: 2038
-#proportion of variance from sites ~1/3
+#REML criterion at convergence: 295
+#proportion of variance from sites ~1/5
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer3))
@@ -286,14 +416,14 @@ qqline(resid(lmer3))
 
 anova(lmer3, lmer1)
 
-#adding winter temp also does not improve, P chisq 0.53
+#adding winter tmin does improve the model (0.8)
 
 #model 4
-lmer4 <- lmer(first_yes_doy~tmin_spring*latitude + (1| site_id_factor), data = OpenFlowers)
+lmer4 <- lmer(peak_onset_doy~tmin_spring + latitude + (1| site_id_factor), data = df)
 summary(lmer4)
 
-#REML criterion at convergence: 2031
-#proportion of variance from sites ~1/3
+#REML criterion at convergence: 295
+#proportion of variance from sites ~1/5
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer4))
@@ -301,31 +431,27 @@ qqline(resid(lmer4))
 
 anova(lmer4, lmer1)
 
-#interaction of spring temp and latitude does improve model - P chiSq 0.02
-#19 day delay is very unlikely
+#adding latitude as additive doesn't improve P of 0.4
 
-#model 5 - is using lat_bands defensible?)
-lmer5 <- lmer(first_yes_doy~tmin_spring*lat_bans + (1| site_id_factor), data = OpenFlowers)
+#model 5
+lmer5 <- lmer(first_yes_doy~tmin_spring + prcp_summer + (1| site_id_factor), data = df)
 summary(lmer5)
 
-#REML criterion at convergence: 1984 (lowest of this set of 5)
+#REML criterion at convergence: 309
 #proportion of variance from sites ~1/5
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer5))
 qqline(resid(lmer5))
 
-anova(lmer5, lmer4)
+anova(lmer5, lmer3)
 
-#interaction of spring temp and latitude bands doesn't improve model, tho not far - P chiSq 0.066
-#effect size of 9 delay very unlikely
+#adding summer precip doesn't help
 
-#visually explore model 4
-p <- ggplot(OpenFlowers, aes(x=tmin_spring, y=first_yes_doy, color=lat_bans)) +
+
+
+#visually explore a model with latitude
+p <- ggplot(df, aes(x=tmin_spring, y=first_yes_doy, color=lat_bans)) +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1) 
 p 
-
-
-#And, then maybe it would be easier to get the effects, like spring min temps advance/delay by X days, the interaction
-#effect is like: after accounting for latitude, spring temps delay bloom by X days?
