@@ -24,16 +24,18 @@ setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoR
 species_list <- npn_species()
 #Find Time to Restore - priority species - https://docs.google.com/spreadsheets/d/1WyxsCqZAAATIgZvR5ewNcZkaN2mumVi2d1vFw8I0HJo/edit#gid=0
 
-
 species <- c(931,916,201,202,203,224,200,204,845,207,781,197,1334,1163,186,1167)
 
 df <- npn_download_status_data(request_source="Alyssa",
-                               years=c(2017:2023),
+                               years=c(2009:2023),
                                species_ids = c(paste0(species)), # species codes
                                state = c("TX", "LA", "OK", "NM"),
                                additional_fields = c("observedby_person_id"),
                                phenophase_ids= c(501), # open flowers 
                                climate_data = FALSE)
+
+write.csv(df, file="status_16spp_2009-2023.csv")
+df <- (read.csv("status_16spp_2009-2023.csv"))
 
 
 write.csv(df, file="status_16spp_2017-2023.csv")
@@ -58,6 +60,17 @@ df$phenophase_status <- as.numeric(df$phenophase_status)
   filter(observedby_person_id < 43389, observedby_person_id > 38000, observedby_person_id != 39173) %>% 
   filter(year !=2017, year !=2022)
 
+#data summary
+summary2009_2023 <- df  %>%
+  group_by(common_name, state)  %>%
+  summarize(records = length(phenophase_status))  
+
+write.csv(summary2009_2023, file="summary2009-2023.csv")
+  
+summary2017_2023 <- df  %>%
+  group_by(common_name, state)  %>%
+  summarize(records = length(phenophase_status)) 
+  
 #calculate the proportion of records in to the total records by week
 df1 <- df %>%
   group_by(week, common_name) %>%
