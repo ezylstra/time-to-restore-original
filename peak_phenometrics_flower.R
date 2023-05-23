@@ -15,6 +15,10 @@ rm(list=ls()[ls()!= "df"])
 setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data")
 
 species_list <- npn_species()
+phenophases <- npn_phenophases_by_species(species_id = 931)
+
+
+species <- c(931,916,201,202,203,224,200,204,845,207,781,197,1334,1163,186,1167) # top 16
 
 #Download data
 df <- npn_download_status_data(request_source="Alyssa",
@@ -72,7 +76,7 @@ df <- df %>%
 #Check the data. It's not happening for this dataset, so I just go ahead and drop these fields
 df <- subset(df, select = -c(FlowersNo,OpenFlowersYes,FlowersError))
   
-#This identifies repeated observations on the same date/individual/phenophase
+#This identifies repeated observations on the same date/individual plant/phenophase
 df <- df %>% 
   group_by(individual_id,observation_date, phenophase_id) %>% 
   mutate(same_date_ind_pp = n()>1)  %>% 
@@ -124,7 +128,7 @@ df <- df %>%
 colnames(df) 
 df <- subset(df, select = c(3:14,18,23))
 
-#FLORAL RESOURCES - optional
+#FLORAL RESOURCES - optional - NOT DOING
 #creates column to flag all observations with over 500 flowers - substantial floral resources available
 df <- df %>%  
   group_by(year, individual_id) %>%
@@ -145,7 +149,7 @@ df <- df %>%
   mutate(near_max_threshold = max_flowers*0.75)%>%
   mutate(is_near_max = if_else(open_flower_estimate > near_max_threshold, 1, 0))%>%
   mutate(peak = if_else(is_near_max == "1", 1, 0))%>% #line to use without floral threshold
-  #mutate(peak = if_else(is_near_max == "1"| over_500 == "1", 1, 0))%>% #line to use with floral threshold
+  #mutate(peak = if_else(is_near_max == "1"| over_500 == "1", 1, 0))%>% #line to use with floral threshold - NOT DOING
   ungroup()
 
 write.csv(df, file="8priority_spp_max_2013-2022_w_peak.csv")
@@ -260,18 +264,4 @@ for (i in unique(df$common_factor)){
 }
 dev.off()
 
-#Plot onset by latitude
-#note not all data is 2022, supplying origin as this year because you have t
-int_pmetric$onset_date <- as.Date(int_pmetric$onset_doy, origin = "2022-01-01")
 
-
-p = ggplot() +
-  geom_point(data = int_pmetric, aes(x = year, y = onset_date), color = int_pmetric$site_id) +
-  #scale_y_continuous(breaks = c(25,30,35,40,45)) +
-  scale_x_continuous(breaks = c(2013,2015,2017,2019,2021)) +
-  labs(title = paste0("Ohio onset x year ", df_subset$common_name),  
-      y = "Onset Date", x = "Year")
-plot(p)
-
-OH_int_pmetric <- int_pmetric %>%
-  filter(state == "OH") 
