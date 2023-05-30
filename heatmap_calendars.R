@@ -137,20 +137,20 @@ plot(p)
 
 plots <- list()
 # Loop over each species
-for (i in unique(df_NM$common_name)) {
+for (i in unique(df_TX$common_name)) {
   # Create temporary dataset filtered by individual species
-  tmp <- df_NM %>%
+  tmp <- df_TX %>%
     filter(common_name == i) 
   # Add the graphs for each individual species to the plot list
   plots[[i]] <- tmp %>%
     ggplot() +
     geom_tile(aes(x=week, y=phenophase_description, fill=proportion)) +
-    theme(axis.text.y = element_text(), axis.ticks.y = element_blank(), legend.position="none", panel.background = element_blank()) +
+    theme(axis.text.x = element_text(hjust=-0.6), axis.text.y = element_text(), axis.ticks.y = element_blank(), legend.position="none", panel.background = element_blank()) +
     labs(x = "", y ="") +
     scale_fill_gradient(low="grey", high=tmp$color[1], (name="Proportion")) +
     facet_wrap(tmp$common_name, strip.position="top") + 
     scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
-                       labels=c("J","F","M", "A", "M", "J", "J", "A", "S", "O", "N", "D", "")) #+
+                       labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) #+
     #coord_fixed(ratio=2) # Can be used to adjust aspect ratio if needed
 }
 
