@@ -29,7 +29,6 @@ df <- npn_download_status_data(request_source="Alyssa",
                                 climate_data = FALSE)
 
 
-
 #Little side venture looking at dupes that come in fresh from the web service
 df1 <- subset(df, select = c(2:22)) #drop Observation_ID field
 df2 <- df1[duplicated(df1)]  #dataframe w just the duplicated records
@@ -152,7 +151,7 @@ df <- df %>%
   #mutate(peak = if_else(is_near_max == "1"| over_500 == "1", 1, 0))%>% #line to use with floral threshold - NOT DOING
   ungroup()
 
-write.csv(df, file="8priority_spp_max_2013-2022_w_peak.csv")
+write.csv(df, file="8priority_spp_2013-2022_w_open_flower_estimate.csv")
 
 #Add count of records in and out of peak
 df$peak <- as.numeric(df$peak) # watch out - seems like this guy sometimes changes peaks from 0/1 to 1/2
