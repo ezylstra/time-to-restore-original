@@ -105,6 +105,7 @@ df = df %>%
 #now that we've dropped all records with a prior no greater than 14 days, how does rest of distribution look?
 hist(df$numdays_since_prior_no)
 
+length(unique(df$common_name))
 #set site id to factor so it can be used as a random factor
 df$site_id_factor <- as.factor(df$site_id)
 
