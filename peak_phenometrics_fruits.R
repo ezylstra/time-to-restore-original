@@ -15,17 +15,16 @@ rm(list=ls()[ls()!= "df"])
 setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data")
 
 species_list <- npn_species()
-phenophases <- npn_phenophases_by_species(species_id = 931)
-
+phenophases <- npn_phenophases_by_species(species_id = 931, 01-01-2022)
 
 species <- c(931,916,201,202,203,224,200,204,845,207,781,197,1334,1163,186,1167) # top 16
 
 #Download data
 df <- npn_download_status_data(request_source="Alyssa",
                                 years=c(2013:2022),
-                                species_ids = c(paste0(species)), # species codes
+                                species_ids = c(paste0(species)), 
                                 additional_fields = c("observedby_person_id"),
-                                phenophase_ids= c(501,500), # open flowers and flowers or flower buds
+                                phenophase_ids= c(390,516), # 516 is fruits and 390 is ripe fruits
                                 climate_data = FALSE)
 
 
@@ -36,9 +35,9 @@ df3 <- df1[!duplicated(df1)] #original dataframe w dupes removed
 
 
 #write out CSV so you don't have to call it back
-write.csv(df, file="16priority_spp_flower_status_2013-2022.csv")
+write.csv(df, file="16priority_spp_status_2013-2022_fruits.csv")
 
-df <- (read.csv("16priority_spp_flower_status_2013-2022.csv"))
+df <- (read.csv("16priority_spp_status_2013-2022_fruits.csv"))
 
 #Format data
 #Code NAs correctly, extract year from the date
@@ -47,7 +46,6 @@ df <- df %>%
   mutate(year = lubridate::year(observation_date)) %>%
   mutate(intensity_value = na_if(intensity_value, "-9999")) %>%
   mutate(midpoint=recode(intensity_value, 'Less than 3'= 2, '3 to 10'= 7, '11 to 100'= 56, '101 to 1,000' = 551, '1,001 to 10,000' = 5510, 'More than 1,000'= 1001,'More than 10,000'= 10001, '95% or more'= 0.95, '75-94%'= 0.85, '50-74%' = 0.62, '25-49%'= 0.37, '5-24%'= 0.15, 'Less than 5%'= 0.05))
-
 
 #Get a count of observers who contributed to observing a given ind plant in a year
 df <- df %>%
@@ -63,17 +61,17 @@ df <- subset(df, select = -c(1,4,11,12,14,23)) #use from read.csv (bc it adds an
 df <- df %>% 
   distinct(individual_id,observation_date,phenophase_description,phenophase_status,intensity_value,.keep_all = TRUE)
 
-#Checks if you have an error we might expect to cause issues, where observers report No to Flowers or Flower buds
-# but Yes to Open Flowers
+#Checks if you have an error we might expect to cause issues, where observers report No to Fruits
+# but Yes to Ripe fruits
 df <- df %>% 
   group_by(observedby_person_id, individual_id, observation_date) %>% 
-  mutate(FlowersNo = ifelse(phenophase_status == 0 & phenophase_id ==500, 1, NA)) %>% 
-  mutate(OpenFlowersYes= ifelse(phenophase_status == 1 & phenophase_id ==501, 1, NA)) %>% 
-  mutate(FlowersError = ifelse(FlowersNo == 1 & OpenFlowersYes == 1, 1, NA)) %>%
+  mutate(FruitsNo = ifelse(phenophase_status == 0 & phenophase_id ==516, 1, NA)) %>% 
+  mutate(RipeFruitsYes= ifelse(phenophase_status == 1 & phenophase_id ==390, 1, NA)) %>% 
+  mutate(FruitsError = ifelse(FruitsNo == 1 & RipeFruitsYes == 1, 1, NA)) %>%
   ungroup()
 
 #Check the data. It's not happening for this dataset, so I just go ahead and drop these fields
-df <- subset(df, select = -c(FlowersNo,OpenFlowersYes,FlowersError))
+df <- subset(df, select = -c(FruitsNo,RipeFruitsYes,FruitsError))
   
 #This identifies repeated observations on the same date/individual plant/phenophase
 df <- df %>% 
@@ -89,7 +87,7 @@ same_date_ind_pp_summary <- df %>%
   mutate(freq = n / sum(n))
 
 #appear to be 1% of records for Flowers/Flower buds and 0.6% for open flowers the same date/phenophase/individual plant, for these spp
-#have a peak at these records
+#have a look at these records
 same_date_records <- df %>% 
   subset(same_date_ind_pp == 1)
 
@@ -114,31 +112,24 @@ df <- df %>%
 #to get the Estimate of Open Flowers
 df <- df %>%       
   group_by(individual_id,observation_date) %>% 
-  mutate(open_flower_estimate = prod(ave_midpoint))  %>% 
+  mutate(ripe_fruit_estimate = prod(ave_midpoint))  %>% 
   ungroup()
 
 #Now we can drop the individuals-year combos that have no information at all, on any dates, for open flower estimates
 df <- df %>%  
   group_by(year, individual_id) %>%
-  filter(any(open_flower_estimate != 0))%>%
+  filter(any(ripe_fruit_estimate != 0))%>%
   ungroup()
 
 #Now remove the columns you no longer need, focused on Open Flower Estimate by Ind/date
 colnames(df) 
-df <- subset(df, select = c(3:14,18,23))
+#df <- subset(df, select = c(3:14,18,23))
 df <- subset(df, select = c(3:14,18,24))
 
-#FLORAL RESOURCES - optional - NOT DOING
-#creates column to flag all observations with over 500 flowers - substantial floral resources available
+#creates column to print the maximum number of fruits for each individual in each year
 df <- df %>%  
   group_by(year, individual_id) %>%
-  mutate(over_500 = if_else(open_flower_estimate >= 500, 1, 0, missing = NULL))%>%
-  ungroup()
-
-#Create a column to print the maximum number of flowers for each individual in each year
-df <- df %>%  
-  group_by(year, individual_id) %>%
-  mutate(max_flowers = max(open_flower_estimate, na.rm = TRUE))%>% 
+  mutate(max_fruits = max(ripe_fruit_estimate, na.rm = TRUE))%>% 
   ungroup()
 
 #flags "near peak" ie within 75% of the max in each ind and year
@@ -146,14 +137,14 @@ df <- df %>%
 #which for this project, include the over 500 resource availability feature
 df <- df %>%  
   group_by(year, individual_id) %>%
-  mutate(near_max_threshold = max_flowers*0.75)%>%
-  mutate(is_near_max = if_else(open_flower_estimate > near_max_threshold, 1, 0))%>%
+  mutate(near_max_threshold = max_fruits*0.75)%>%
+  mutate(is_near_max = if_else(ripe_fruit_estimate > near_max_threshold, 1, 0))%>%
   mutate(peak = if_else(is_near_max == "1", 1, 0))%>% #line to use without floral threshold
   #mutate(peak = if_else(is_near_max == "1"| over_500 == "1", 1, 0))%>% #line to use with floral threshold - NOT DOING
   ungroup()
 
-write.csv(df, file="16priority_spp_2013-2022_w_open_flower_estimate.csv")
-df <- (read.csv("16priority_spp_2013-2022_w_open_flower_estimate.csv"))
+write.csv(df, file="16priority_spp_2013-2022_w_ripe_fruit_estimate.csv")
+df <- (read.csv("16priority_spp_2013-2022_w_ripe_fruit_estimate.csv"))
 
 #Add count of records in and out of peak
 df$peak <- as.numeric(df$peak) # watch out - seems like this guy sometimes changes peaks from 0/1 to 1/2
@@ -208,12 +199,12 @@ for (i in 1:nrow(int_pmetric)) {
   }
 }
 
-#new column holds phenophase - Open Flowers
-int_pmetric$phenophase_description <- "Open Flowers"
-int_pmetric$phenophase_id <- 501
+#New columns - restore the phenophase info
+int_pmetric$phenophase_description <- "Ripe Fruits"
+int_pmetric$phenophase_id <- 390
 #With the code above we have successfully flagged our Intensity phenometric data with discontinuous flags
 #the resulting int_pmetric file is essentially the prototype for individual intensity phenometrics 
-write.csv(int_pmetric, 'intensity_phenometrics_flower_16priority_spp_2013-2022.csv')
+write.csv(int_pmetric, 'intensity_phenometrics_fruit_16priority_spp_2013-2022.csv')
 
 #Now back over to the base dataset, df, where we want to get the discontinuous flag and plot data, to reality check
 #Our intensity phenometrics, decide if we want to include all ind-year combos

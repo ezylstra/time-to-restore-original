@@ -47,7 +47,7 @@ head(daymet_df$month)
 
 str(daymet_df)
 
-write.csv(daymet_df, file="daymet_stations.csv")
+write.csv(daymet_df, file="daymet_stations_16spp.csv")
                               
 fall_ref_df <- daymet_df %>%
   group_by(site_id)  %>%
@@ -99,7 +99,7 @@ hist(all_ref1$prcp_summer)
 hist(all_ref1$tmax_summer)
 hist(all_ref1$tmin_summer)
 
-write.csv(all_ref1, file="daymet_ref_file_2022.csv")
+write.csv(all_ref1, file="daymet_ref_file_2022_16spp.csv")
 
 setwd(DataFolder)
 daymet2022 <- (read.csv("daymet_ref_file_2022.csv"))

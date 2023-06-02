@@ -8,6 +8,7 @@ library(ggforce)
 library(lme4)
 library(mblm)
 rm(list=ls())
+
 setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data")
 
 #This script performs preliminary analyses on the cues for blooming in pollinator resource
@@ -15,19 +16,21 @@ setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoR
 
 #helper call for species IDs
 species<-npn_species()
+species <- c(931,916,201,202,203,224,200,204,845,207,781,197,1334,1163,186,1167) # top 16
 
 #download individual phenometric data, with supporting fields, including Daymet climate data (only thru 2021 currently - 2022 coming soon)
 #just 2022
 df2022 <- npn_download_individual_phenometrics(
   request_source = 'Alyssa', 
   years = c(2022), 
-  species_ids = c(931,916,201,202,203,224,200,204),
+  species_ids = c(paste0(species)),
   additional_fields = c("Site_Name", "Network_Name", "Phenophase_Category", "Observed_Status_Conflict_Flag"),
+  phenophase_ids = c(501,390), #open flowers and ripe fruits 
   climate_data = TRUE
 )
 
-write.csv(df2022, file="8priority_spp_2022.csv")
-df2022 <- (read.csv("8priority_spp_2022.csv"))
+write.csv(df2022, file="16priority_spp_OF_RF_2022.csv")
+df2022 <- (read.csv("16priority_spp_OF_RF_2022.csv"))
 
 #create the list of stations needed to run daymet_download.R
 stations <- df2022 %>% distinct(site_id, latitude, longitude)
@@ -36,16 +39,17 @@ stations <- df2022 %>% distinct(site_id, latitude, longitude)
 df <- npn_download_individual_phenometrics(
   request_source = 'Alyssa', 
   years = c(2009:2021), 
-  species_ids = c(931,916,201,202,203,224,200,204),
+  species_ids = c(paste0(species)),
   additional_fields = c("Site_Name", "Network_Name", "Phenophase_Category", "Observed_Status_Conflict_Flag"),
+  phenophase_ids = c(501,390), #open flowers and ripe fruits 
   climate_data = TRUE
 )
 
-write.csv(df, file="8priority_spp_2009-2021.csv")
-df <- (read.csv("8priority_spp_2009-2021.csv"))
+write.csv(df, file="16priority_spp_OF_RF_2009-2021.csv")
+df <- (read.csv("16priority_spp_OF_RF_2009-2021.csv"))
 
 #load daymet data by station reference file (made using daymet_download.R)
-daymet2022 <- (read.csv("daymet_ref_file_2022.csv"))
+daymet2022 <- (read.csv("daymet_ref_file_2022_16spp.csv"))
 
 #merge daymet ref file back with 2022 observational data
 df2022_daymet <- merge(df2022, daymet2022, by = c("site_id"), all=TRUE)
@@ -60,90 +64,86 @@ colnames(df2022_daymet) <- sub("\\.y","",colnames(df2022_daymet))
 cols_intersection <- intersect(df2022_daymet, df)
 
 #remove unneeded cols in df (gdd, acc_prcp, daylength, that we aren't using, to facilitate the bind)
-df <- select(df, -c(1,30,31,36,37,42,43,48:50))
+colnames(df)
+df <- select(df, -c(29,30,35,36,41,42,47:49)) #web service
+#df <- select(df, -c(1,30,31,36,37,42,43,48:50)) #excel
 
 #row bind, FINALLY make a dataset with all the priority species data and daymet data for 2022
 df_complete <- rbind(df2022_daymet, df)
 
-write.csv(df_complete, file="8priority_spp_2009-2022.csv")
+write.csv(df_complete, file="16priority_spp_OF_RF_2009-2022.csv")
+df_complete <- (read.csv("16priority_spp_OF_RF_2009-2022.csv"))
 
-df_complete <- (read.csv("8priority_spp_2009-2022.csv"))
+#take only the first yes in each year
 df_complete = df_complete %>% 
-  subset(phenophase_description == c('Open flowers')) %>% 
-  group_by(individual_id,first_yes_year) %>%
+  group_by(individual_id,first_yes_year, phenophase_id) %>%
   filter(first_yes_doy == min(first_yes_doy))
 
-df_complete$ind_year <- paste0(df_complete$individual_id, "_", df_complete$first_yes_year)
+#add a column to facilitate merging with peak data
+df_complete$ind_pp_year <- paste0(df_complete$individual_id, "_", df_complete$phenophase_id, "_", df_complete$first_yes_year)
 
-#read in the peak data created using peak_phenometrics_flower.R
-df_peak <- (read.csv("intensity_phenometrics_8priority_spp_2013-2022.csv"))
-df_peak$ind_year <- paste0(df_peak$individual_id, "_", df_peak$year)
+#read in the flower and fruit intensity data created using peak_phenometrics_flower.R and peak_phenometrics_fruit.R
+df_of_peak <- (read.csv("intensity_phenometrics_flower_16priority_spp_2013-2022.csv"))
+df_rf_peak <- (read.csv("intensity_phenometrics_fruit_16priority_spp_2013-2022.csv"))
+df_peak <- rbind(df_of_peak,df_rf_peak)
 
-df_more_complete <- merge(df_complete, df_peak, by = c("ind_year"), all=TRUE)
+df_peak$ind_pp_year <- paste0(df_peak$individual_id, "_", df_peak$phenophase_id, "_", df_peak$year)
 
-colnames(df_more_complete)
-df_more_complete <- select(df_more_complete, -c(2,43:46))
-colnames(df_more_complete) <- sub("\\.x","",colnames(df_more_complete))
+df_complete_peak <- merge(df_complete, df_peak, by = c("ind_pp_year"), all=TRUE)
 
-write.csv(df_more_complete, file="8priority_spp_w_peak_2009-2022.csv")
-df_more_complete <- (read.csv("8priority_spp_w_peak_2009-2022.csv"))
+colnames(df_complete_peak)
+df_complete_peak <- select(df_complete_peak, -c(2,43:46,52,53))
+colnames(df_complete_peak) <- sub("\\.x","",colnames(df_complete_peak))
 
-df_more_complete = df_more_complete %>% 
+write.csv(df_complete_peak, file="16priority_spp_flower_fruit_w_peak_2009-2022.csv")
+df <- (read.csv("16priority_spp_flower_fruit_w_peak_2009-2022.csv"))
+
+df = df %>% 
   subset(numdays_since_prior_no != -9999) %>%
   subset(numdays_since_prior_no < 14)
 
-
-#weird to me that this gives you a row count, rather than a sum of peak dates.. but it does what i need
-sum(!is.na(df_more_complete$peak_onset_doy))
-
-hist(df_more_complete$numdays_since_prior_no)
-
-df <- df_more_complete %>% subset(species_id == 201) 
-
-#Calls that can be used to see how much data in the project region/lower lats:
-#subset(state == c("TX", "LA", "OK", "NM")) 
-#subset(latitude < 37)
-
-#subsetting to only first yes in the year - didn't impact model fit/change outliers, so leaving all first yeses
-#group_by(first_yes_year, individual_id, phenophase_description) %>%
-#filter(first_yes_doy == min(first_yes_doy))
-
-#viz amt of data by year
-hist(df$first_yes_year)
-hist(df$first_yes_doy)
-hist(df$peak_onset_doy)
+#now that we've dropped all records with a prior no greater than 14 days, how does rest of distribution look?
+hist(df$numdays_since_prior_no)
 
 #set site id to factor so it can be used as a random factor
 df$site_id_factor <- as.factor(df$site_id)
 
 #create five lat bands named by major mid western cities for looking at temp sensitivity by lat
 df$lat_bans <- as.factor(cut(df$latitude, c(-Inf,30,35,40,45,Inf), c("Orlando", "Jackson", "OKCity", "Madison", "Bismark")))
-  
+
 #explore records with observer conflicts
 conflict_summary <- df %>%
-  count(phenophase_category, observed_status_conflict_flag) %>%
-  group_by(phenophase_category) %>%
+  count(common_name, phenophase_category, observed_status_conflict_flag) %>%
+  group_by(common_name, phenophase_category) %>%
   mutate(observed_status_conflict_flag=recode(
     observed_status_conflict_flag,'MultiObserver-StatusConflict'='Multi', 'OneObserver-StatusConflict'='One')) %>%
   mutate(Percent_Conflict = n / sum(n))
 
 #decide not to remove any conflicting records, because represent less than 4% of records, thus Yes will override a No
 
-# dropping very warm spring outlier, didn't effect the model, didn't keep
-#NoOutlier <- df %>% subset(tmin_spring < 15)
+#determine number of onsets for each spp-phenophase (if you also group by site_id, can calc site_years, only dif if multiple onsets/year, but we already chose first onset only above)
+onsets_n_records <- df %>%
+  group_by(common_name, phenophase_description) %>% 
+  summarize(n_first_yes = length(first_yes_doy)) 
 
-#determine how many site-years there are - this is only dif from # records where there are multiple onsets/year
-onsets_summary <- df %>%
-  group_by(site_id, phenophase_description) %>%
-  summarize(years = n_distinct(first_yes_year)) 
+#determine number of peak records (for some reason cannot make this and the above work as one table)
+peak_n_records <- df %>%
+  group_by(common_name, phenophase_description) %>% 
+  summarize(n_peak = length(peak_onset_doy)) 
 
-sum(onsets_summary$years)
+#split the dataset to facilitate histograms and passing data to linear models
+#creates this list with 28 elements (one for each spp phenophase combo)
+s <- split(df, list(df$common_name, df$phenophase_description))
 
-#weird to me that this gives you a row count, rather than a sum of peak dates.. but it does what i need
-sum(!is.na(df$peak_onset_doy))
+#histograms for each species-phenophase combo - why is xlab doubled?
+for (i in c(1:28)) {
+  hist(s[[i]]$first_yes_year, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$first_yes_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$peak_onset_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  }
 
-#look at distribution of data
 
+#look at distribution of data - as above need to make for loops for the s[[i]] object
 par(mfrow = c(2,2))
 hist(df$first_yes_doy, main = "Day of Year")
 hist(df$peak_onset_doy, main = "Peak Onset")
@@ -166,12 +166,13 @@ hist(df$prcp_summer, main = "Summer Precip")
 hist(df$prcp_winter, main = "Winter Precip")
 
 #Simple Linear Regression
-#plot a linear model of first day that "open flowers" were observed against climate variables
-
+#plot a linear model of first day that open flowers or ripe fruits were observed against climate variables
+#need to put these in a for loop as well so they go spp-phenophase by spp-phenophase
 ggplot(data = df, aes(x = tmin_spring, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+    stat_cor() +
+    geom_point() +
+    stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
 
 ggplot(data = df, aes(x = tmax_spring, y = first_yes_doy)) +
   stat_cor() +
@@ -447,8 +448,6 @@ qqline(resid(lmer5))
 anova(lmer5, lmer3)
 
 #adding summer precip doesn't help
-
-
 
 #visually explore a model with latitude
 p <- ggplot(df, aes(x=tmin_spring, y=first_yes_doy, color=lat_bans)) +

@@ -152,7 +152,7 @@ purrr::reduce(plots, `/`)
 (plots[[1]] + plots[[2]]) / (plots[[3]] + plots[[4]])
 
 
-#SPECIES HEATMAP + OPEN_FLOWERS_ESTIMATE CURVE
+#SPECIES CALENDAR - STATUS HEATMAP + OPEN_FLOWERS_ESTIMATE CURVE
 #create plot
  p2 = ggplot() +
   geom_line(data = df_peak, aes(x=week, y=open_flower_estimate),color="orange", size = 2) +
