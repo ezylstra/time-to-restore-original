@@ -128,9 +128,10 @@ onsets_n_records <- df %>%
   summarize(n_first_yes = length(first_yes_doy)) 
 
 #determine number of peak records (for some reason cannot make this and the above work as one table)
+#also use of sum here is unintuitive to me, but length doesn't work, it counts the NAs even if you put the !is.na
 peak_n_records <- df %>%
   group_by(common_name, phenophase_description) %>% 
-  summarize(n_peak = length(peak_onset_doy)) 
+  summarize(n_peak = sum(!is.na(peak_onset_doy))) 
 
 #split the dataset to facilitate histograms and passing data to linear models
 #creates this list with 28 elements (one for each spp phenophase combo)
