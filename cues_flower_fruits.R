@@ -99,6 +99,7 @@ write.csv(df_complete_peak, file="16priority_spp_flower_fruit_w_peak_2009-2022.c
 df <- (read.csv("16priority_spp_flower_fruit_w_peak_2009-2022.csv"))
 
 df = df %>% 
+  subset(state != -9999) %>% #getting rid of no-state records removes Midway Atoll Verbesina records w no climate drivers
   subset(numdays_since_prior_no != -9999) %>%
   subset(numdays_since_prior_no < 14)
 
@@ -133,17 +134,28 @@ peak_n_records <- df %>%
   group_by(common_name, phenophase_description) %>% 
   summarize(n_peak = sum(!is.na(peak_onset_doy))) 
 
+
+
 #split the dataset to facilitate histograms and passing data to linear models
 #creates this list with 28 elements (one for each spp phenophase combo)
 s <- split(df, list(df$common_name, df$phenophase_description))
 
-#histograms for each species-phenophase combo - why is xlab doubled?
+#histograms for each species-phenophase combo 
+#issues
+#why is xlab doubled?
+#why does it only produce for open flowers for cardinal flower, eastern purp coneflower, buttonbush and sunflower
 for (i in c(1:28)) {
   hist(s[[i]]$first_yes_year, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
   hist(s[[i]]$first_yes_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
   hist(s[[i]]$peak_onset_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
   }
 
+#when I break out, for ex, purple prairie clover, fruits, it makes a histogram just fine
+df_ppc_fruits <- df %>% 
+  subset(species_id == 845) %>% 
+  subset(phenophase_id ==390)
+
+hist(df_ppc_fruits$peak_onset_doy)
 
 #look at distribution of data - as above need to make for loops for the s[[i]] object
 par(mfrow = c(2,2))
@@ -170,190 +182,44 @@ hist(df$prcp_winter, main = "Winter Precip")
 #Simple Linear Regression
 #plot a linear model of first day that open flowers or ripe fruits were observed against climate variables
 #need to put these in a for loop as well so they go spp-phenophase by spp-phenophase
-ggplot(data = df, aes(x = tmin_spring, y = first_yes_doy)) +
+
+#function for x and y
+
+fun <- function(x,y) {
+  p <-  ggplot(data = s[[i]], aes(x = x, y = y)) +
     stat_cor() +
     geom_point() +
-    stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+    stat_smooth(method = "lm", formula = y~x , linewidth = 1) +
+    labs(y = "", x = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description)) 
+  plot(p)
+}
+
+for (i in c(1:28)) {
+  x = s[[i]]$first_yes_doy
+  y = s[[i]]$tmax_spring
+  fun(x,y)
+}
+
+#I could repeat this loop for the 3 response variables (onset, peak onset and peak duration)
+#and 12 predictors (4 seasons x tmax, 4 seasons x tmin and 4 seasons x precip)
+#unless there is some way to loop over those "columns" that are no longer columns
 
 
+#this doesn't work bc there are no longer colnames in the s object
+for (i in c(1:28)) { 
+  for (y in colnames(s[[i]])[31:42]) {
+  for (x in colnames(s[[i]])[c(22,41,46)]) {
+    fun(x,y)
+  }
+  }
+}
+
+#old manual way
 ggplot(data = df, aes(x = tmax_spring, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
-ggplot(data = df, aes(x = tmin_winter, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_winter, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmin_fall, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_fall, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmin_summer, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_summer, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_spring, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_winter, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_fall, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_summer, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-
-#FOR PEAK
-ggplot(data = df, aes(x = tmin_spring, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_spring, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_winter, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmin_winter, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_fall, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmin_fall, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_summer, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmin_summer, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_winter, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_spring, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_fall, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_summer, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-
-#FOR PEAK DURATION 
-ggplot(data = df, aes(x = tmin_spring, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_spring, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_winter, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmin_winter, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_fall, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmin_fall, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmax_summer, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = tmin_summer, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_winter, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_spring, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_fall, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df, aes(x = prcp_summer, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
 
 #relevant predictors - https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=1084297830
@@ -369,7 +235,12 @@ ggplot(data = df, aes(x = prcp_summer, y = peak_duration)) +
 # and https://mspeekenbrink.github.io/sdam-r-companion/linear-mixed-effects-models.html
 
 #look at how variables range at sites - helps to decide if site should indeed be a random effect
-boxplot(first_yes_doy ~ site_id, data = df)
+
+for (i in c(1:28)) {
+  boxplot(s[[i]]$first_yes_doy ~ s[[i]]$site_id, data = s[[i]])
+}
+
+  
 boxplot(latitude ~ site_id, data = df)
 boxplot(tmin_spring ~ site_id, data = df)
 boxplot(first_yes_doy ~ state, data = df)
