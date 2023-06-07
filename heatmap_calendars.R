@@ -7,8 +7,8 @@ library(readr)
 library(lubridate)
 library(ggplot2)
 library(patchwork)
-library(RColorBrewer)
 library(ggbreak)
+library(ggtext)
 rm(list= ls())
 
 #Notes
@@ -28,7 +28,7 @@ species_list <- npn_species()
 #Find Time to Restore - priority species - https://docs.google.com/spreadsheets/d/1WyxsCqZAAATIgZvR5ewNcZkaN2mumVi2d1vFw8I0HJo/edit#gid=0
 
 species <- c(186,197,200,201,202,203,204,207,224,781,845,916,931,1163,1167,1334)
-phenophases = c(501, 390) # open flowers and ripe fruits
+phenophases = c(390, 501) # open flowers and ripe fruits
 
 df <- npn_download_status_data(request_source="Alyssa",
                                years=c(2009:2023),
@@ -65,16 +65,23 @@ df$phenophase_status <- as.numeric(df$phenophase_status)
 df1 <- df %>%
   group_by(week, common_name, phenophase_id) %>%
   mutate(num_records = n()) %>%
-  mutate(sum_pp = sum(phenophase_status))%>%
+  mutate(sum_pp = sum(phenophase_status)) %>%
   mutate(proportion = sum_pp/num_records) %>%
+  ungroup() %>%
+  # Format data table for plots requested by Erin
+  mutate(phenophase_description = ifelse(phenophase_description == "Ripe fruits", "Ripe seeds", "Open flowers")) %>%
+  rowwise() %>%
+  mutate(both_names = paste(common_name, " (", "*",genus, " ", species, "*", ")", sep="")) %>%
   ungroup()
+
+df1$both_names <- as.factor(df1$both_names)
 
 #Wrangle peak dataset
 #to get all species/states etc load the file 8priority_spp_2013-2022_w_open_flower_estimate.csv
-df_peak <- (read.csv("buttonbush2013-2022_w_open_flower_estimate.csv"))
+df_peak <- read.csv("16priority_spp_2013-2022_w_open_flower_estimate.csv")
 df_peak <- df_peak %>%
-  mutate(week = lubridate::week(observation_date))  %>%
-  filter(state == "LA")
+  mutate(week = lubridate::week(observation_date)) # %>%
+  #filter(state == "LA")
 
 #Ignore for now, this code creates the option "Heatmaps for Both Measures" on the survey, that no one chose
 df_peak <- df_peak %>%
@@ -90,9 +97,9 @@ df_peak <- df_peak %>%
 
 #COMMUNITY HEATMAPS 
 #Creates dataframe for which species should use which colors - not used currently
-species_color <- data.frame(species_id = species, color=c("lightgoldenrod1", "palevioletred1", "palegreen1", "burlywood1",
-                                                          "plum1", "gold", "orchid2", "papayawhip", "rosybrown1", "indianred1",
-                                                          "purple1", "firebrick1", "thistle2", "darkolivegreen1", "yellow", "lightcyan2"))
+species_color <- data.frame(species_id = species, color=c("lightgoldenrod1", "palevioletred1", "palegreen1", "sienna1",
+                                                          "darkorchid1", "gold", "orchid2", "papayawhip", "hotpink", "indianred1",
+                                                          "purple", "firebrick1", "thistle2", "seagreen3", "yellow", "chartreuse"))
 
 # Create data frames based on states' priority species
 df_LA <- df1 %>%
@@ -101,29 +108,35 @@ df_LA <- df1 %>%
   # Filter for species
   filter(species_id == 201 | species_id == 1334) %>%
   # Assign different colors to different species
-  mutate(color = case_when(species_id == 201 ~ "burlywood1",
-                           species_id == 1334 ~ "lightcyan2"))
+  mutate(color = case_when(species_id == 201 ~ "sienna1",
+                           species_id == 1334 ~ "chartreuse1")) %>%
+  arrange(common_name)
+
 # Repeat for all states
 df_OK <- df1 %>%
   filter(state != "NM" ) %>%
   filter(species_id == 781 | species_id == 201 | species_id == 203) %>%
-  mutate(color = case_when(species_id == 201 ~ "burlywood1",
+  mutate(color = case_when(species_id == 201 ~ "sienna1",
                            species_id == 781 ~ "indianred1",
-                           species_id == 203 ~ "gold"))
+                           species_id == 203 ~ "gold")) %>%
+  arrange(common_name)
+
 df_NM <- df1 %>%
   filter(state == "NM" | state == "TX") %>%
   filter(species_id == 224 | species_id == 1163 | species_id == 1167 | species_id == 203) %>%
-  mutate(color = case_when(species_id == 224 ~ "rosybrown1",
-                           species_id == 1163 ~ "darkolivegreen1",
+  mutate(color = case_when(species_id == 224 ~ "hotpink",
+                           species_id == 1163 ~ "seagreen3",
                            species_id == 1167 ~ "yellow",
-                           species_id == 203 ~ "gold"))
+                           species_id == 203 ~ "gold")) %>%
+  arrange(common_name)
+
 df_TX <- df1 %>%
   filter(state == "TX") %>%
   filter(species_id == 201 | species_id == 202 | species_id == 203) %>%
-  mutate(color = case_when(species_id == 201 ~ "burlywood1",
-                           species_id == 202 ~ "plum1",
-                           species_id == 203 ~ "gold"))
-
+  mutate(color = case_when(species_id == 201 ~ "sienna1",
+                           species_id == 202 ~ "darkorchid1",
+                           species_id == 203 ~ "gold")) %>%
+  arrange(common_name)
 
 
 #Iterate to make plots for each species-state combo for the community heatmap calendars
@@ -137,29 +150,150 @@ for (i in unique(df_TX$common_name)) {
   plots[[i]] <- tmp %>%
     ggplot() +
     geom_tile(aes(x=week, y=phenophase_description, fill=proportion)) +
-    theme(axis.text.x = element_text(hjust=-0.6), axis.text.y = element_text(), axis.ticks.y = element_blank(), legend.position="none", panel.background = element_blank()) +
+    facet_wrap(tmp$both_names, strip.position="top") + 
+    theme(axis.text.x = element_text(hjust=-0.6), axis.text.y = element_text(), strip.text = ggtext::element_markdown(),
+          axis.ticks.y = element_blank(), legend.position="left", panel.background = element_rect(fill="white"),
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(), legend.key.size = unit(0.5, "cm")) +
     labs(x = "", y ="") +
-    scale_fill_gradient(low="grey", high=tmp$color[1], (name="Proportion")) +
-    facet_wrap(tmp$common_name, strip.position="top") + 
+    scale_fill_gradient(low="gray90", high=tmp$color[1], (name="Proportion")) +
     scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
-                       labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) #+
+                       labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) +
+    scale_y_discrete(limits=rev) 
     #coord_fixed(ratio=2) # Can be used to adjust aspect ratio if needed
 }
 
 # Stack all plots
 purrr::reduce(plots, `/`)
-# For a 2x2 grid
-(plots[[1]] + plots[[2]]) / (plots[[3]] + plots[[4]])
+
+(plots[[1]]+plots[[2]])/(plots[[3]]+plots[[4]])
 
 
-#SPECIES CALENDAR - STATUS HEATMAP + OPEN_FLOWERS_ESTIMATE CURVE
+#SPECIES HEATMAP + OPEN_FLOWERS_ESTIMATE CURVE
+
+# NM showy milkweed, LA buttonbush, OK silver maple, TX sunflower
+
+df_peak_TX <- df_peak %>%
+  filter(state == "TX") %>%
+  filter(species_id == 203) %>%
+  filter(open_flower_estimate != 0.00)
+
+inat_TX <- read.csv("inat_sunflower.csv") %>%
+  rowwise() %>%
+  mutate(date = strsplit(time_observed_at, " ")[[1]][1]) %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(month = lubridate::month(date)) %>%
+  mutate(week = lubridate::week(date)) %>%
+  ungroup() %>%
+  group_by(week) %>%
+  mutate(num_records = n()) %>%
+  ungroup()
+
+df_peak_NM <- df_peak %>%
+  filter(state == "NM") %>%
+  filter(species_id == 224) %>%
+  filter(open_flower_estimate != 0.00)
+
+inat_NM <- read.csv("inat_showy_milkweed.csv") %>%
+  rowwise() %>%
+  mutate(date = strsplit(time_observed_at, " ")[[1]][1]) %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(month = lubridate::month(date)) %>%
+  mutate(week = lubridate::week(date)) %>%
+  ungroup() %>%
+  group_by(week) %>%
+  mutate(num_records = n()) %>%
+  ungroup()
+
+df_peak_LA <- df_peak %>%
+  filter(state == "LA") %>%
+  filter(species_id == 201) %>%
+  filter(open_flower_estimate != 0.00)
+
+inat_LA <- read.csv("inat_buttonbush.csv") %>%
+  rowwise() %>%
+  mutate(date = strsplit(time_observed_at, " ")[[1]][1]) %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(month = lubridate::month(date)) %>%
+  mutate(week = lubridate::week(date)) %>%
+  ungroup() %>%
+  group_by(week) %>%
+  mutate(num_records = n()) %>%
+  ungroup()
+
+df_peak_OK <- df_peak %>%
+  filter(state == "OK") %>%
+  filter(species_id == 781) %>%
+  filter(open_flower_estimate != 0.00)
+
+inat_OK <- read.csv("inat_silver_maple.csv") %>%
+  rowwise() %>%
+  mutate(date = strsplit(time_observed_at, " ")[[1]][1]) %>%
+  mutate(year = lubridate::year(date)) %>%
+  mutate(month = lubridate::month(date)) %>%
+  mutate(week = lubridate::week(date)) %>%
+  ungroup() %>%
+  group_by(week) %>%
+  mutate(num_records = n()) %>%
+  ungroup()
+
+
+
 #create plot
- p2 = ggplot() +
-  geom_line(data = df_peak, aes(x=week, y=open_flower_estimate),color="orange", size = 2) +
-  labs(y = "# Open Flowers ", x = " ") +
-  theme(axis.text.x = element_blank(),axis.text.y = element_blank(),axis.ticks = element_blank())
-plot(p2) + theme_minimal()
+p1 = ggplot() +
+  geom_tile(data = filter(df_TX, phenophase_id == 501, species_id == 203, state == "TX"),
+            aes(x=week, y=phenophase_description, fill=proportion)) +
+  theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(), legend.position="left") +
+  scale_fill_gradient(low="grey", high="purple", (name="")) +
+  labs(x="", y="Proportion") +
+  scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+  
 
+p2 = ggplot() +
+  geom_line(data = df_peak_TX, aes(x=week, y=open_flower_estimate),color="orange", linewidth = 1) +
+  theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7)) +
+  labs(x="", y="# Open Flowers") +
+  scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+  
+
+p3 = ggplot() +
+  geom_line(data = inat_LA, aes(x=week, y=num_records), color="green", linewidth = 1) +
+  theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7)) +
+  labs(x="", y="# Open Flowers") +
+  scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+  
+
+wrap_elements(p3 / p2 / p1 & theme(plot.margin = margin(l=0)))
 #use the copy plot, and resizing to get it to come out long and narrow
 #maybe in the future explore the reshape library to make it circular like the year?
+
+
+# SITE SPECIFIC CALENDAR
+# Site 27474 in LA is good for buttonbush, site 35069 would be only sufficient data in OK,
+# but it already constitutes the vast majority of data for silver maple
+df_LA_site <- df_LA %>%
+  filter(site_id == 27474)
+df_peak_LA_site <- df_peak_LA %>%
+  filter(site_id == 27474)
+
+p4 = ggplot() +
+  geom_tile(data = df_LA,
+            aes(x=week, y=phenophase_description, fill=proportion)) +
+  theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(), legend.position="left") +
+  scale_fill_gradient(low="grey", high=df_LA$color[1], (name="")) +
+  labs(x="", y="Proportion") +
+  scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+
+p5 = ggplot() +
+  geom_line(data = df_peak_LA, aes(x=week, y=open_flower_estimate),color="orange", linewidth = 1) +
+  theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7)) +
+  labs(x="", y="# Open Flowers", title="Site 27474") +
+  scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+p5/p4
 
