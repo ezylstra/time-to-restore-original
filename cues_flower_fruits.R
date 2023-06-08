@@ -99,21 +99,25 @@ write.csv(df_complete_peak, file="16priority_spp_flower_fruit_w_peak_2009-2022.c
 df <- (read.csv("16priority_spp_flower_fruit_w_peak_2009-2022.csv"))
 
 df = df %>% 
-  subset(state != -9999) %>% #getting rid of no-state records removes Midway Atoll Verbesina records w no climate drivers
-  subset(numdays_since_prior_no != -9999) %>%
-  subset(numdays_since_prior_no < 14)
+  subset(state != -9999) %>% #dropping no-state records - removes Midway Atoll Verbesina records w no climate data
+  subset(numdays_since_prior_no != -9999) %>% #dropping no prior no
+  subset(numdays_since_prior_no < 14) #dropping if prior no > 14 days prior
 
 #now that we've dropped all records with a prior no greater than 14 days, how does rest of distribution look?
 hist(df$numdays_since_prior_no)
 
+#what species are we working with here
 length(unique(df$common_name))
-#set site id to factor so it can be used as a random factor
+print(unique(df$common_name))
+print(unique(df$species))
+
+#set site id to factor so it can be used as a random factor in models
 df$site_id_factor <- as.factor(df$site_id)
 
 #create five lat bands named by major mid western cities for looking at temp sensitivity by lat
 df$lat_bans <- as.factor(cut(df$latitude, c(-Inf,30,35,40,45,Inf), c("Orlando", "Jackson", "OKCity", "Madison", "Bismark")))
 
-#explore records with observer conflicts
+#explore records with observer conflicts - likely better to do this by spp/phenophase, bc some error-prone combos can be missed
 conflict_summary <- df %>%
   count(common_name, phenophase_category, observed_status_conflict_flag) %>%
   group_by(common_name, phenophase_category) %>%
@@ -121,20 +125,18 @@ conflict_summary <- df %>%
     observed_status_conflict_flag,'MultiObserver-StatusConflict'='Multi', 'OneObserver-StatusConflict'='One')) %>%
   mutate(Percent_Conflict = n / sum(n))
 
-#decide not to remove any conflicting records, because represent less than 4% of records, thus Yes will override a No
+#decide not to remove any conflicting records, because represent less than 4% of records, thus Yes will override a No in all cases (for now)
 
 #determine number of onsets for each spp-phenophase (if you also group by site_id, can calc site_years, only dif if multiple onsets/year, but we already chose first onset only above)
 onsets_n_records <- df %>%
   group_by(common_name, phenophase_description) %>% 
-  summarize(n_first_yes = length(first_yes_doy)) 
+  summarise(n_first_yes =  sum(!is.na(first_yes_doy))) 
 
 #determine number of peak records (for some reason cannot make this and the above work as one table)
 #also use of sum here is unintuitive to me, but length doesn't work, it counts the NAs even if you put the !is.na
 peak_n_records <- df %>%
   group_by(common_name, phenophase_description) %>% 
   summarize(n_peak = sum(!is.na(peak_onset_doy))) 
-
-
 
 #split the dataset to facilitate histograms and passing data to linear models
 #creates this list with 28 elements (one for each spp phenophase combo)
