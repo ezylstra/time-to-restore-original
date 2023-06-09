@@ -138,83 +138,128 @@ peak_n_records <- df %>%
   group_by(common_name, phenophase_description) %>% 
   summarize(n_peak = sum(!is.na(peak_onset_doy))) 
 
+#drop species with insufficient data
+df <- df  %>% subset(species_id %in% c(931,201:203,197,781,1163,916))
+
 #split the dataset to facilitate histograms and passing data to linear models
 #creates this list with 28 elements (one for each spp phenophase combo)
-s <- split(df, list(df$common_name, df$phenophase_description))
+s <- split(df, list(df$phenophase_description, df$common_name))
 
 #histograms for each species-phenophase combo 
-#issues
 #why is xlab doubled?
-#why does it only produce for open flowers for cardinal flower, eastern purp coneflower, buttonbush and sunflower
-for (i in c(1:28)) {
+
+#look at distribution of records over the years and latitude (where and when data collected)
+par(mfrow = c(2,2))
+for (i in c(1:16)) {
   hist(s[[i]]$first_yes_year, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$latitude, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+}
+
+#look at distributions of DOY for phenophase onset and peak onset
+par(mfcol = c(2,2))
+for (i in c(1:16)) {
   hist(s[[i]]$first_yes_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
   hist(s[[i]]$peak_onset_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
-  }
+}
 
-#when I break out, for ex, purple prairie clover, fruits, it makes a histogram just fine
-df_ppc_fruits <- df %>% 
-  subset(species_id == 845) %>% 
-  subset(phenophase_id ==390)
+#hm why is peak ripe fruits before onset ripe fruits in the histos for wild berg?
 
-hist(df_ppc_fruits$peak_onset_doy)
+#look at distribution of the length of peak duration (days)
+par(mfcol = c(2,2))
+for (i in c(1:16)) {
+  hist(s[[i]]$peak_duration, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+}
 
-#look at distribution of data - as above need to make for loops for the s[[i]] object
+#look at distribution of predictor variables for each species-phenophase combo
 par(mfrow = c(2,2))
-hist(df$first_yes_doy, main = "Day of Year")
-hist(df$peak_onset_doy, main = "Peak Onset")
-hist(df$peak_duration, main = "Peak Duration")
-hist(df$latitude, main = "Latitude")
-par(mfrow = c(2, 2))
-hist(df$tmax_spring, main = "Spring Tmax")
-hist(df$tmax_fall, main = "Fall Tmax")
-hist(df$tmax_summer, main = "Summer Tmax")
-hist(df$tmax_winter, main = "Winter Tmax")
-par(mfrow = c(2, 2))
-hist(df$tmin_spring, main = "Spring Tmin")
-hist(df$tmin_fall, main = "Fall Tmin")
-hist(df$tmin_summer, main = "Summer Tmin")
-hist(df$tmin_winter, main = "Winter Tmin")
-par(mfrow = c(2, 2))
-hist(df$prcp_spring, main = "Spring Precip")
-hist(df$prcp_fall, main = "Fall Precip")
-hist(df$prcp_summer, main = "Summer Precip")
-hist(df$prcp_winter, main = "Winter Precip")
+for (i in c(1:16)) {
+  hist(s[[i]]$tmin_fall, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$tmin_winter, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$tmin_spring, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$tmin_summer, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$tmax_fall, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$tmax_winter, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$tmax_spring, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$tmax_summer, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$prcp_fall, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$prcp_winter, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$prcp_spring, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  hist(s[[i]]$prcp_summer, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+}
+
+#outliers
+#removing peaks before day 200 for wild bergamot ripe fruit
+s[[16]] <- s[[16]]  %>% subset(s[[16]]$first_yes_doy > 200)
+
 
 #Simple Linear Regression
 #plot a linear model of first day that open flowers or ripe fruits were observed against climate variables
 #need to put these in a for loop as well so they go spp-phenophase by spp-phenophase
 
 #function for x and y
-
 fun <- function(x,y) {
   p <-  ggplot(data = s[[i]], aes(x = x, y = y)) +
     stat_cor() +
     geom_point() +
     stat_smooth(method = "lm", formula = y~x , linewidth = 1) +
-    labs(y = "", x = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description)) 
+    labs(title = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description)) 
   plot(p)
 }
 
-for (i in c(1:28)) {
+#works - but only allows evaluating one predictor across the whole dataset, really
+#i want to look sequentially at each species-phenophase combo, first at all predictors by first_yes_doy
+#then all predictors by peak_onset_doy, then all predictors by peak_duration
+for (i in c(1:16)) {
   x = s[[i]]$first_yes_doy
-  y = s[[i]]$tmax_spring
+  y = s[[i]]$tmax_fall
   fun(x,y)
 }
+
+
+#doesn't work (using c(1:2) so it runs/fails faster)
+predictors <- as.list(s[[i]]$tmax_fall, s[[i]]$tmax_winter, s[[i]]$tmax_spring, s[[i]]$tmax_summer)
+for (i in c(1:2)) {
+  for (y in c(predictors)) {
+    x = s[[i]]$first_yes_doy
+    fun(x,y)
+  }
+}
+
+#doesn't work
+for (i in c(1:2)) { 
+  for (y in c(s[[i]]$tmax_fall, s[[i]]$tmax_winter, s[[i]]$tmax_spring)) {
+    x = s[[i]]$first_yes_doy
+      fun(x,y)
+  }
+}
+
+#this doesn't work bc there are no longer colnames in the s object
+for (i in c(1:28)) { 
+  for (y in colnames(s[[i]])[31:42]) {
+    for (x in colnames(s[[i]])[c(22,41,46)]) {
+      fun(x,y)
+    }
+  }
+}
+
+#This makes a 4K page PDF with just a single point in the middle of each graph
+#Create PDF
+pdf(paste("SimpleLinearModels",".pdf",sep=""))
+for (i in c(1:2)) { 
+  for (x in c(s[[i]]$first_yes_doy,s[[i]]$peak_onset_doy)) {
+   for (y in c(s[[i]]$tmax_fall,s[[i]]$tmax_winter)) {
+    fun(x,y)
+   }
+  }
+}
+dev.off()
 
 #I could repeat this loop for the 3 response variables (onset, peak onset and peak duration)
 #and 12 predictors (4 seasons x tmax, 4 seasons x tmin and 4 seasons x precip)
 #unless there is some way to loop over those "columns" that are no longer columns
 
 
-#this doesn't work bc there are no longer colnames in the s object
-for (i in c(1:28)) { 
-  for (y in colnames(s[[i]])[31:42]) {
-  for (x in colnames(s[[i]])[c(22,41,46)]) {
-    fun(x,y)
-  }
-  }
-}
+
 
 #old manual way
 ggplot(data = df, aes(x = tmax_spring, y = first_yes_doy)) +
