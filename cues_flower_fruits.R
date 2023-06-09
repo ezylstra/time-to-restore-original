@@ -194,7 +194,6 @@ s[[16]] <- s[[16]]  %>% subset(s[[16]]$first_yes_doy > 200)
 
 #Simple Linear Regression
 #plot a linear model of first day that open flowers or ripe fruits were observed against climate variables
-#need to put these in a for loop as well so they go spp-phenophase by spp-phenophase
 
 #function for x and y
 fun <- function(x,y) {
@@ -214,7 +213,6 @@ for (i in c(1:16)) {
   y = s[[i]]$tmax_fall
   fun(x,y)
 }
-
 
 #doesn't work (using c(1:2) so it runs/fails faster)
 predictors <- as.list(s[[i]]$tmax_fall, s[[i]]$tmax_winter, s[[i]]$tmax_spring, s[[i]]$tmax_summer)
@@ -254,19 +252,12 @@ for (i in c(1:2)) {
 }
 dev.off()
 
-#I could repeat this loop for the 3 response variables (onset, peak onset and peak duration)
-#and 12 predictors (4 seasons x tmax, 4 seasons x tmin and 4 seasons x precip)
-#unless there is some way to loop over those "columns" that are no longer columns
-
-
-
 
 #old manual way
 ggplot(data = df, aes(x = tmax_spring, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
 
 
 #relevant predictors - https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=1084297830
@@ -283,7 +274,7 @@ ggplot(data = df, aes(x = tmax_spring, y = first_yes_doy)) +
 
 #look at how variables range at sites - helps to decide if site should indeed be a random effect
 
-for (i in c(1:28)) {
+for (i in c(1:16)) {
   boxplot(s[[i]]$first_yes_doy ~ s[[i]]$site_id, data = s[[i]])
 }
 
