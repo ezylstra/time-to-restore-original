@@ -209,32 +209,32 @@ fun <- function(x,y) {
 #i want to look sequentially at each species-phenophase combo, first at all predictors by first_yes_doy
 #then all predictors by peak_onset_doy, then all predictors by peak_duration
 for (i in c(1:16)) {
-  x = s[[i]]$first_yes_doy
-  y = s[[i]]$tmax_fall
+  y = s[[i]]$first_yes_doy
+  x = s[[i]]$tmax_fall
   fun(x,y)
 }
 
 #doesn't work (using c(1:2) so it runs/fails faster)
 predictors <- as.list(s[[i]]$tmax_fall, s[[i]]$tmax_winter, s[[i]]$tmax_spring, s[[i]]$tmax_summer)
 for (i in c(1:2)) {
-  for (y in c(predictors)) {
-    x = s[[i]]$first_yes_doy
+  for (x in c(predictors)) {
+    y = s[[i]]$first_yes_doy
     fun(x,y)
   }
 }
 
 #doesn't work
 for (i in c(1:2)) { 
-  for (y in c(s[[i]]$tmax_fall, s[[i]]$tmax_winter, s[[i]]$tmax_spring)) {
-    x = s[[i]]$first_yes_doy
+  for (x in c(s[[i]]$tmax_fall, s[[i]]$tmax_winter, s[[i]]$tmax_spring)) {
+    y = s[[i]]$first_yes_doy
       fun(x,y)
   }
 }
 
 #this doesn't work bc there are no longer colnames in the s object
 for (i in c(1:28)) { 
-  for (y in colnames(s[[i]])[31:42]) {
-    for (x in colnames(s[[i]])[c(22,41,46)]) {
+  for (x in colnames(s[[i]])[31:42]) {
+    for (y in colnames(s[[i]])[c(22,41,46)]) {
       fun(x,y)
     }
   }
@@ -244,20 +244,15 @@ for (i in c(1:28)) {
 #Create PDF
 pdf(paste("SimpleLinearModels",".pdf",sep=""))
 for (i in c(1:2)) { 
-  for (x in c(s[[i]]$first_yes_doy,s[[i]]$peak_onset_doy)) {
-   for (y in c(s[[i]]$tmax_fall,s[[i]]$tmax_winter)) {
+  for (y in c(s[[i]]$first_yes_doy,s[[i]]$peak_onset_doy)) {
+   for (x in c(s[[i]]$tmax_fall,s[[i]]$tmax_winter)) {
     fun(x,y)
    }
   }
 }
 dev.off()
 
-
-#old manual way
-ggplot(data = df, aes(x = tmax_spring, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+df1 <- subset(df, species_id == 202 & phenophase_id == 390)
 
 
 #relevant predictors - https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=1084297830
@@ -273,37 +268,38 @@ ggplot(data = df, aes(x = tmax_spring, y = first_yes_doy)) +
 # and https://mspeekenbrink.github.io/sdam-r-companion/linear-mixed-effects-models.html
 
 #look at how variables range at sites - helps to decide if site should indeed be a random effect
-
+par(mfrow = c(4,4))
 for (i in c(1:16)) {
-  boxplot(s[[i]]$first_yes_doy ~ s[[i]]$site_id, data = s[[i]])
+  boxplot(s[[i]]$first_yes_doy ~ s[[i]]$site_id, data = s[[i]], xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  boxplot(s[[i]]$latitude ~ s[[i]]$site_id, data = s[[i]], xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  boxplot(s[[i]]$prcp_fall ~ s[[i]]$site_id, data = s[[i]], xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+  boxplot(s[[i]]$tmin_winter ~ s[[i]]$site_id, data = s[[i]], xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
 }
 
-  
-boxplot(latitude ~ site_id, data = df)
-boxplot(tmin_spring ~ site_id, data = df)
-boxplot(first_yes_doy ~ state, data = df)
-
+#object df1 is created below - still manually ggplotting tor review
+#and manually building these linear models
 
 #model 1, first yes predicted by tmin_spring, with site as a random effect
-lmer1 <- lmer(peak_onset_doy~tmin_spring + (1| site_id_factor), data = df)
+lmer1 <- lmer(peak_duration~tmin_summer + (1| site_id_factor), data = df1)
 summary(lmer1)
 
-#REML criterion at convergence: 302
+#REML criterion at convergence: 244
 #(compare these across models - looking for lowest)
-#proportion of variance from sites ~1/4
+#proportion of variance from sites ~1/2
 #(you get this from the Random Effects section of the model summary - Random Effects - the site_id variance vs the site_id + residual variance
 #(ie, of all the variance how much is attributable to site)
 
+par(mfrow = c(1,1))
 #Q-Q plots to check residuals
 qqnorm(resid(lmer1))
 qqline(resid(lmer1))  
 
 #model 2
-lmer2 <- lmer(peak_onset_doy~tmin_spring + prcp_summer + (1| site_id_factor), data = df)
+lmer2 <- lmer(peak_duration~tmin_summer + latitude + (1| site_id_factor), data = df1)
 summary(lmer2)
 
-#REML criterion at convergence: 300
-#proportion of variance from sites ~1/4
+#REML criterion at convergence: 237
+#proportion of variance from sites 1/3
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer2))
@@ -313,14 +309,14 @@ qqline(resid(lmer2))
 #make the more complex model the first argument
 anova(lmer2, lmer1)
 
-#adding summer prcp does  improve the model (P ChiSq 0.95)
+#adding latitude does not improve the model (P ChiSq 0.09) - marginal
 
 #model 3
-lmer3 <- lmer(peak_onset_doy~tmin_spring + tmin_winter + (1| site_id_factor), data = df)
+lmer3 <- lmer(peak_onset_doy~tmax_spring + latitude + (1| site_id_factor), data = df1)
 summary(lmer3)
 
-#REML criterion at convergence: 295
-#proportion of variance from sites ~1/5
+#REML criterion at convergence: 224
+#proportion of variance from sites 1/9
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer3))
@@ -328,40 +324,229 @@ qqline(resid(lmer3))
 
 anova(lmer3, lmer1)
 
-#adding winter tmin does improve the model (0.8)
+#adding latitude  does not improve the model (0.5) 
 
 #model 4
-lmer4 <- lmer(peak_onset_doy~tmin_spring + latitude + (1| site_id_factor), data = df)
+lmer4 <- lmer(first_yes_doy~tmax_winter + tmin_fall + prcp_winter + (1| site_id_factor), data = df1)
 summary(lmer4)
 
-#REML criterion at convergence: 295
-#proportion of variance from sites ~1/5
+#REML criterion at convergence: 457
+#proportion of variance from sites ~2/3
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer4))
 qqline(resid(lmer4))
 
-anova(lmer4, lmer1)
+anova(lmer4, lmer2)
 
-#adding latitude as additive doesn't improve P of 0.4
+#adding winter precip instead doesn't improve P of 0.8
 
 #model 5
-lmer5 <- lmer(first_yes_doy~tmin_spring + prcp_summer + (1| site_id_factor), data = df)
+lmer5 <- lmer(first_yes_doy~tmax_winter + tmin_fall + latitude + (1| site_id_factor), data = df1)
 summary(lmer5)
 
-#REML criterion at convergence: 309
-#proportion of variance from sites ~1/5
+#REML criterion at convergence: 447
+#proportion of variance from sites ~2/3
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer5))
 qqline(resid(lmer5))
 
-anova(lmer5, lmer3)
+anova(lmer5, lmer2)
 
-#adding summer precip doesn't help
+#adding latitude doesn't improve 0.3
 
 #visually explore a model with latitude
-p <- ggplot(df, aes(x=tmin_spring, y=first_yes_doy, color=lat_bans)) +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1) 
+p <- ggplot(df1, aes(x=tmin_summer, y=peak_duration, color=lat_bans)) +
+  geom_point() 
+  #stat_smooth(method = "lm", formula = y~x , linewidth = 1) 
 p 
+
+##GGPLOTS for simple linear regression
+
+df1 <- subset(df, species_id == 931 & phenophase_id == 390 & first_yes_doy > 200)
+
+#for onset
+ggplot(data = df1, aes(x = tmin_spring, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_spring, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_winter, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_winter, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_fall, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_fall, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_summer, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_summer, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_spring, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_winter, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_fall, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_summer, y = first_yes_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+
+#FOR PEAK ONSET
+ggplot(data = df1, aes(x = tmin_spring, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_spring, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_winter, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_winter, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_fall, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_fall, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_summer, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_summer, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_winter, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_spring, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_fall, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_summer, y = peak_onset_doy)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+
+#FOR PEAK DURATION 
+ggplot(data = df1, aes(x = tmin_spring, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_spring, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_winter, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_winter, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_fall, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_fall, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmax_summer, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = tmin_summer, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_winter, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_spring, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_fall, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
+ggplot(data = df1, aes(x = prcp_summer, y = peak_duration)) +
+  stat_cor() +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
