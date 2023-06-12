@@ -240,6 +240,98 @@ for (i in c(1:28)) {
   }
 }
 
+################################################################################
+# Begin new stuff
+
+# Create multiple ggplots for each species with a variety of combinations of 
+# variables
+
+#' ggplot object of a linear model with a single predictor and single response
+#' 
+#' @param species_df data frame with values for a single species
+#' @param x character indicating predictor variable
+#' @param y character indicating response variable
+plot_lm <- function(species_df, x, y) {
+  species_name <- species_df$common_name[1]
+  phenophase <- species_df$phenophase_description[1]
+  # Have to use esoteric ggplot syntax first converting x to a symbol, then 
+  # unquoting it with !!
+  species_plot <- ggplot(data = species_df,
+                         mapping = aes(x = !!sym(x), y = !!sym(y))) +
+    stat_cor() +
+    geom_point() +
+    stat_smooth(method = "lm", formula = y ~ x, linewidth = 1) +
+    labs(title = paste(species_name, " ", phenophase))
+  return(species_plot)
+}
+# Test of above function
+cardinal_flower_plot <- plot_lm(species_df = s[[1]],
+                                x = "tmin_fall",
+                                y = "first_yes_doy")
+print(cardinal_flower_plot)
+
+# Now we want this over:
+#    All species (N = 16)
+#    All predictors (N = 12)
+#    All responses (N = 3)
+# Total number of plots: 16 x 12 x 3 = 576
+# Make a vector of the 12 predictors
+pvars <- c("tmin", "tmax", "prcp")
+pseasons <- c("fall", "winter", "spring", "summer")
+predictors <- paste(rep(pvars, each = length(pseasons)), 
+                    pseasons, 
+                    sep = "_")
+# Make a vector of the three response variables
+responses <- c("first_yes_doy", "peak_onset_doy", "peak_duration")
+
+# Make sure the output folder exists; if not, create it
+if (!dir.exists("output")) {
+  dir.create("output")
+}
+
+# We iterate over all species in the list s, creating one plot at a time, 
+# saving each ggplot object to a list. After all pairwise predictor/response 
+# plots are made, we write these plots to a multi-page pdf - one plot per page
+# and one file for each species/phenophase combination
+for (species_i in 1:length(s)) {
+  # A list to hold each plot for this species/phenophase
+  species_plots <- vector(mode = "list")
+  # Pull out the data frame for this one species/phenophase
+  species_df <- s[[species_i]]
+  # Iterate over each predictor
+  for (predictor in predictors) {
+    # Iterate over each response
+    for (response in responses) {
+      one_plot <- plot_lm(species_df = species_df,
+                          x = predictor,
+                          y = response)
+      # Add this new plot to the end of the list
+      species_plots[[(length(species_plots) + 1)]] <- one_plot
+    }
+  }
+  # Done creating the plots, now save to pdf; we make a "nice name" variable 
+  # that doesn't contain spaces or apostrophes (I'm looking at you S. gooddinii)
+  nice_name <- gsub(pattern = " ",
+                    replacement = "_",
+                    x = species_df$common_name[1])
+  nice_name <- gsub(pattern = "'",
+                    replacement = "",
+                    x = nice_name)
+  nice_stage <- tolower(gsub(pattern = " ",
+                             replacement = "_",
+                             x = species_df$phenophase_description[1]))
+  message("Saving: ", nice_name, ", ", nice_stage)
+  filename <- paste0("output/", nice_name, "-", nice_stage, "-linear-models.pdf")
+  pdf(filename)
+  # Note this produces warnings if rows are removed because they contain 
+  # missing (NA) values.
+  print(species_plots)
+  dev.off()
+}
+
+# End new stuff
+################################################################################
+
 #This makes a 4K page PDF with just a single point in the middle of each graph
 #Create PDF
 pdf(paste("SimpleLinearModels",".pdf",sep=""))
