@@ -162,7 +162,7 @@ for (i in c(1:16)) {
   hist(s[[i]]$peak_onset_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
 }
 
-#hm why is peak ripe fruits before onset ripe fruits in the histos for wild berg?
+
 
 #look at distribution of the length of peak duration (days)
 par(mfcol = c(2,2))
@@ -278,14 +278,16 @@ for (i in c(1:16)) {
 
 #object df1 is created below - still manually ggplotting tor review
 #and manually building these linear models
+#as needed - review boxplots for effect of site
+boxplot(peak_duration~site_id, data = df1)
 
-#model 1, first yes predicted by tmin_spring, with site as a random effect
-lmer1 <- lmer(peak_duration~tmin_summer + (1| site_id_factor), data = df1)
+#model 1, first yes predicted by X, with site as a random effect
+lmer1 <- lmer(first_yes_doy~tmax_spring + (1| site_id_factor), data = df1)
 summary(lmer1)
 
-#REML criterion at convergence: 244
+#REML criterion at convergence: 680
 #(compare these across models - looking for lowest)
-#proportion of variance from sites ~1/2
+#proportion of variance from sites- 1/5
 #(you get this from the Random Effects section of the model summary - Random Effects - the site_id variance vs the site_id + residual variance
 #(ie, of all the variance how much is attributable to site)
 
@@ -295,11 +297,11 @@ qqnorm(resid(lmer1))
 qqline(resid(lmer1))  
 
 #model 2
-lmer2 <- lmer(peak_duration~tmin_summer + latitude + (1| site_id_factor), data = df1)
+lmer2 <- lmer(first_yes_doy~tmax_spring + tmax_winter + (1| site_id_factor), data = df1)
 summary(lmer2)
 
-#REML criterion at convergence: 237
-#proportion of variance from sites 1/3
+#REML criterion at convergence: 678
+#proportion of variance from sites - 1/5
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer2))
@@ -309,14 +311,14 @@ qqline(resid(lmer2))
 #make the more complex model the first argument
 anova(lmer2, lmer1)
 
-#adding latitude does not improve the model (P ChiSq 0.09) - marginal
+#adding winter tmax does not improve the model (P ChiSq 0.2) marginal
 
 #model 3
-lmer3 <- lmer(peak_onset_doy~tmax_spring + latitude + (1| site_id_factor), data = df1)
+lmer3 <- lmer(first_yes_doy~tmax_spring + prcp_winter +(1| site_id_factor), data = df1)
 summary(lmer3)
 
-#REML criterion at convergence: 224
-#proportion of variance from sites 1/9
+#REML criterion at convergence: 686
+#proportion of variance from sites 1/5
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer3))
@@ -324,37 +326,38 @@ qqline(resid(lmer3))
 
 anova(lmer3, lmer1)
 
-#adding latitude  does not improve the model (0.5) 
+#adding prcp winter (nor summer tmax) does not improve the model - p is 0.9
 
 #model 4
-lmer4 <- lmer(first_yes_doy~tmax_winter + tmin_fall + prcp_winter + (1| site_id_factor), data = df1)
+lmer4 <- lmer(first_yes_doy~tmax_spring + latitude +(1| site_id_factor), data = df1)
 summary(lmer4)
 
-#REML criterion at convergence: 457
-#proportion of variance from sites ~2/3
+#REML criterion at convergence: 678
+#proportion of variance from sites - 1/5
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer4))
 qqline(resid(lmer4))
 
-anova(lmer4, lmer2)
+anova(lmer4, lmer1)
 
-#adding winter precip instead doesn't improve P of 0.8
+#adding latitude does improve P of 0.7
 
 #model 5
-lmer5 <- lmer(first_yes_doy~tmax_winter + tmin_fall + latitude + (1| site_id_factor), data = df1)
+lmer5 <- lmer(first_yes_doy~tmax_spring+ tmin_winter*latitude  +(1| site_id_factor), data = df1)
 summary(lmer5)
 
-#REML criterion at convergence: 447
-#proportion of variance from sites ~2/3
+#REML criterion at convergence: 892
+#proportion of variance from sites 1/2
 
 #Q-Q plots to check residuals
 qqnorm(resid(lmer5))
 qqline(resid(lmer5))
 
-anova(lmer5, lmer2)
+anova(lmer5, lmer4)
 
-#adding latitude doesn't improve 0.3
+#adding latitude as interactive w winter tmin does not improve p 0.3
+#also tried making lat interactive with spring tmax, also did not improve
 
 #visually explore a model with latitude
 p <- ggplot(df1, aes(x=tmin_summer, y=peak_duration, color=lat_bans)) +
@@ -364,9 +367,13 @@ p
 
 ##GGPLOTS for simple linear regression
 
-df1 <- subset(df, species_id == 931 & phenophase_id == 390 & first_yes_doy > 200)
+df1 <- subset(df, species_id == 781 & phenophase_id == 390 & first_yes_doy < 200)
 
-#for onset
+peak_n_records <- df1 %>%
+  summarize(n_peak = sum(!is.na(peak_onset_doy))) 
+
+
+#FOR PHENOPHASE ONSET
 ggplot(data = df1, aes(x = tmin_spring, y = first_yes_doy)) +
   stat_cor() +
   geom_point() +
@@ -550,3 +557,4 @@ ggplot(data = df1, aes(x = prcp_summer, y = peak_duration)) +
   stat_cor() +
   geom_point() +
   stat_smooth(method = "lm", formula = y~x , linewidth = 1)
+
