@@ -34,7 +34,7 @@ df <- npn_download_status_data(request_source="Alyssa",
                                years=c(2009:2023),
                                species_ids = c(paste0(species)), # species codes
                                state = c("TX", "LA", "OK", "NM"),
-                               additional_fields = c("observedby_person_id"),
+                               additional_fields = c("observedby_person_id", "Site_Name", "Network_Name"),
                                phenophase_ids= c(paste0(phenophases)), 
                                climate_data = FALSE)
 
@@ -49,9 +49,6 @@ df <- df %>%
   mutate(week = lubridate::week(observation_date))  %>%
   filter(phenophase_status != -1) # -1 is when people reported ?
   #filter(!species_id %in% c(1167,1163,197,931,202))
-
-str(df)
-colnames(df)
 
 df$common_name <- as.factor(df$common_name)
 df$phenophase_status <- as.numeric(df$phenophase_status)
@@ -153,7 +150,7 @@ for (i in unique(df_TX$common_name)) {
     facet_wrap(tmp$both_names, strip.position="top") + 
     theme(axis.text.x = element_text(hjust=-0.6), axis.text.y = element_text(), strip.text = ggtext::element_markdown(),
           axis.ticks.y = element_blank(), legend.position="left", panel.background = element_rect(fill="white"),
-          panel.grid.major = element_blank(), panel.grid.minor = element_blank(), legend.key.size = unit(0.5, "cm")) +
+          panel.grid.major = element_blank(), panel.grid.minor = element_blank(), legend.key.size = unit(0.5, "cm"), strip.background = element_rect("white")) +
     labs(x = "", y ="") +
     scale_fill_gradient(low="gray90", high=tmp$color[1], (name="Proportion")) +
     scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
@@ -168,7 +165,7 @@ purrr::reduce(plots, `/`)
 (plots[[1]]+plots[[2]])/(plots[[3]]+plots[[4]])
 
 
-#SPECIES HEATMAP + OPEN_FLOWERS_ESTIMATE CURVE
+ #SPECIES HEATMAP + OPEN_FLOWERS_ESTIMATE CURVE
 
 # NM showy milkweed, LA buttonbush, OK silver maple, TX sunflower
 
@@ -189,9 +186,9 @@ inat_TX <- read.csv("inat_sunflower.csv") %>%
   ungroup()
 
 df_peak_NM <- df_peak %>%
-  filter(state == "NM") %>%
-  filter(species_id == 224) %>%
-  filter(open_flower_estimate != 0.00)
+  filter(state == "NM") #%>%
+  #filter(species_id == 224) %>%
+  #filter(open_flower_estimate != 0.00)
 
 inat_NM <- read.csv("inat_showy_milkweed.csv") %>%
   rowwise() %>%
@@ -236,37 +233,42 @@ inat_OK <- read.csv("inat_silver_maple.csv") %>%
   mutate(num_records = n()) %>%
   ungroup()
 
+df_LA_single <- filter(df_LA, phenophase_id == 501, species_id == 201, state == "LA")
+df_TX_single <- filter(df_TX, phenophase_id == 501, species_id == 203, state == "TX")
+df_NM_single <- filter(df_NM, phenophase_id == 501, species_id == 224, state == "NM")
+df_OK_single <- filter(df_OK, phenophase_id == 501, species_id == 781, state == "OK")
 
 
 #create plot
 p1 = ggplot() +
-  geom_tile(data = filter(df_TX, phenophase_id == 501, species_id == 203, state == "TX"),
-            aes(x=week, y=phenophase_description, fill=proportion)) +
+  geom_tile(data = df_TX_single, aes(x=week, y=phenophase_description, fill=proportion)) +
   theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(), legend.position="left") +
-  scale_fill_gradient(low="grey", high="purple", (name="")) +
-  labs(x="", y="Proportion") +
+        axis.ticks.y = element_blank(), legend.position="left", panel.background = element_blank()) +
+  scale_fill_gradient(low="grey90", high=df_TX_single$color[1]) +
+  labs(x="", y="Proportion of\nOpen Flowers\n2016-2022") +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
                      labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
   
 
 p2 = ggplot() +
-  geom_line(data = df_peak_TX, aes(x=week, y=open_flower_estimate),color="orange", linewidth = 1) +
-  theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7)) +
-  labs(x="", y="# Open Flowers") +
+  geom_line(data = df_peak_TX, aes(x=week, y=open_flower_estimate), color="#3CBB75FF", linewidth = 1) +
+  theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7), legend.position = "none",
+        panel.background = element_rect("white"), panel.grid = element_blank()) +
+  labs(x="", y="Number of\nOpen Flowers\n2017-2019") +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
                      labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
   
 
 p3 = ggplot() +
-  geom_line(data = inat_LA, aes(x=week, y=num_records), color="green", linewidth = 1) +
-  theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7)) +
-  labs(x="", y="# Open Flowers") +
+  geom_line(data = inat_TX, aes(x=week, y=num_records), color="#440154FF", linewidth = 1) +
+  theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7), legend.position="none",
+        panel.background = element_rect("white"), panel.grid = element_blank()) +
+  labs(x="", y="Number of\niNat Records\n2018-2023", title=df_peak_TX$common_name[1]) +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
-                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", ""))
   
 
-wrap_elements(p3 / p2 / p1 & theme(plot.margin = margin(l=0)))
+wrap_elements(p3 / p2 / p1 & theme(plot.margin = margin(l=1)))
 #use the copy plot, and resizing to get it to come out long and narrow
 #maybe in the future explore the reshape library to make it circular like the year?
 
@@ -280,20 +282,33 @@ df_peak_LA_site <- df_peak_LA %>%
   filter(site_id == 27474)
 
 p4 = ggplot() +
-  geom_tile(data = df_LA,
+  geom_tile(data = df_LA_site,
             aes(x=week, y=phenophase_description, fill=proportion)) +
   theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_blank(),
-        axis.ticks.y = element_blank(), legend.position="left") +
-  scale_fill_gradient(low="grey", high=df_LA$color[1], (name="")) +
+        axis.ticks.y = element_blank(), legend.position="left", panel.background = element_blank()) +
+  scale_fill_gradient(low="grey90", high=df_LA_site$color[1], (name="")) +
   labs(x="", y="Proportion") +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
                      labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
 
 p5 = ggplot() +
-  geom_line(data = df_peak_LA, aes(x=week, y=open_flower_estimate),color="orange", linewidth = 1) +
+  geom_line(data = df_peak_LA_site, aes(x=week, y=open_flower_estimate),color="orange", linewidth = 1) +
   theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7)) +
-  labs(x="", y="# Open Flowers", title="Site 27474") +
+  labs(x="", y="# Open Flowers", title="Site 27474 - Visitor Center Trail") +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
                      labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
 p5/p4
 
+
+# INTERANNUAL VARIATION
+p6 = ggplot() +
+  geom_tile(data = filter(df_LA, year != 2014, year != 2017, year != 2023, species_id == 201),
+            aes(x=week, y=phenophase_description, fill=proportion)) +
+  theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(), legend.position="left", panel.background = element_blank()) +
+  scale_fill_gradient(low="grey90", high=df_LA_site$color[1], (name="")) +
+  labs(x="", y="Proportion", title='LA common buttonbush') +
+  facet_wrap(~year,ncol=1, strip.position="right") +
+  scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+p6
