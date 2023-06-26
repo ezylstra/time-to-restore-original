@@ -104,6 +104,12 @@ df = df %>%
   subset(numdays_since_prior_no != -9999) %>% #dropping no prior no
   subset(numdays_since_prior_no < 14) #dropping if prior no > 14 days prior
 
+#determining onsets by state to decide re making a table with mean and SE and range by state for TTR states
+onsets_by_state <- df %>%
+  subset(state %in% c("NM", "TX", "OK", "LA"))  %>%
+  group_by(common_name, phenophase_description, state) %>%
+  summarise(n_first_yes = sum(!is.na(first_yes_doy))) 
+
 #now that we've dropped all records with a prior no greater than 14 days, how does rest of distribution look?
 hist(df$numdays_since_prior_no)
 
@@ -149,27 +155,43 @@ s <- split(df, list(df$phenophase_description, df$common_name))
 #histograms for each species-phenophase combo 
 #why is xlab doubled?
 
+
+setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data/output")
+
 #look at distribution of records over the years and latitude (where and when data collected)
+pdf("latitude_histograms.pdf")
 par(mfrow = c(2,2))
 for (i in c(1:16)) {
-  hist(s[[i]]$first_yes_year, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
   hist(s[[i]]$latitude, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
 }
+dev.off()
+
+pdf("year_histograms.pdf")
+par(mfrow = c(2,2))
+for (i in c(1:16)) {
+  histograms1 <- hist(s[[i]]$first_yes_year, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
+}
+dev.off()
 
 #look at distributions of DOY for phenophase onset and peak onset
+pdf("onset_peak_onset_histograms.pdf")
 par(mfcol = c(2,2))
 for (i in c(1:16)) {
   hist(s[[i]]$first_yes_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
   hist(s[[i]]$peak_onset_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
 }
+dev.off()
 
 #look at distribution of the length of peak duration (days)
+pdf("duration_histograms.pdf")
 par(mfcol = c(2,2))
 for (i in c(1:16)) {
   hist(s[[i]]$peak_duration, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
 }
+dev.off()
 
 #look at distribution of predictor variables for each species-phenophase combo
+pdf("climate_variables_histograms.pdf")
 par(mfrow = c(2,2))
 for (i in c(1:16)) {
   hist(s[[i]]$tmin_fall, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
@@ -185,6 +207,7 @@ for (i in c(1:16)) {
   hist(s[[i]]$prcp_spring, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
   hist(s[[i]]$prcp_summer, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
 }
+dev.off()
 
 #outliers
 #figure out which number is which spp-pp combo
