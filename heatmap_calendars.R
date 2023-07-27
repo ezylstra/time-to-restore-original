@@ -186,9 +186,9 @@ inat_TX <- read.csv("inat_sunflower.csv") %>%
   ungroup()
 
 df_peak_NM <- df_peak %>%
-  filter(state == "NM") #%>%
-  #filter(species_id == 224) %>%
-  #filter(open_flower_estimate != 0.00)
+  filter(state == "NM") %>%
+  filter(species_id == 224) %>%
+  filter(open_flower_estimate != 0.00)
 
 inat_NM <- read.csv("inat_showy_milkweed.csv") %>%
   rowwise() %>%
@@ -240,12 +240,14 @@ df_OK_single <- filter(df_OK, phenophase_id == 501, species_id == 781, state == 
 
 
 #create plot
+# These are hard coded and the script must be edited for each state.
+# If editing, change any postal abbreviations as well as years in each labs arg.
 p1 = ggplot() +
   geom_tile(data = df_TX_single, aes(x=week, y=phenophase_description, fill=proportion)) +
   theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_blank(),
         axis.ticks.y = element_blank(), legend.position="left", panel.background = element_blank()) +
   scale_fill_gradient(low="grey90", high=df_TX_single$color[1]) +
-  labs(x="", y="Proportion of\nOpen Flowers\n2016-2022") +
+  labs(x="", y="Proportion of\nOpen Flowers\n2011-2023") +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
                      labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
   
@@ -254,7 +256,7 @@ p2 = ggplot() +
   geom_line(data = df_peak_TX, aes(x=week, y=open_flower_estimate), color="#3CBB75FF", linewidth = 1) +
   theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7), legend.position = "none",
         panel.background = element_rect("white"), panel.grid = element_blank()) +
-  labs(x="", y="Number of\nOpen Flowers\n2017-2019") +
+  labs(x="", y="Number of\nOpen Flowers\n2014-2022") +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
                      labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
   
@@ -263,7 +265,7 @@ p3 = ggplot() +
   geom_line(data = inat_TX, aes(x=week, y=num_records), color="#440154FF", linewidth = 1) +
   theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7), legend.position="none",
         panel.background = element_rect("white"), panel.grid = element_blank()) +
-  labs(x="", y="Number of\niNat Records\n2018-2023", title=df_peak_TX$common_name[1]) +
+  labs(x="", y="Number of\niNat Records\n2011-2023", title=df_peak_TX$common_name[1]) +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
                      labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", ""))
   
@@ -280,24 +282,52 @@ df_LA_site <- df_LA %>%
   filter(site_id == 27474)
 df_peak_LA_site <- df_peak_LA %>%
   filter(site_id == 27474)
+  
 
 p4 = ggplot() +
   geom_tile(data = df_LA_site,
             aes(x=week, y=phenophase_description, fill=proportion)) +
-  theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_blank(),
+  theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_text(),
         axis.ticks.y = element_blank(), legend.position="left", panel.background = element_blank()) +
   scale_fill_gradient(low="grey90", high=df_LA_site$color[1], (name="")) +
   labs(x="", y="Proportion") +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
-                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) +
+  scale_y_discrete(limits=rev) 
 
 p5 = ggplot() +
-  geom_line(data = df_peak_LA_site, aes(x=week, y=open_flower_estimate),color="orange", linewidth = 1) +
+  geom_line(data = df_peak_LA_site, aes(x=week, y=open_flower_estimate),color="sienna1", linewidth = 1) +
   theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7)) +
-  labs(x="", y="# Open Flowers", title="Site 27474 - Visitor Center Trail") +
+  labs(x="", y="# Open Flowers", title="Jean Lafitte NHPP: Barataria Preserve\nVisitor Center Trail, Louisiana") +
   scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
                      labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
 p5/p4
+
+# NM SITE SPECIFIC CALENDAR
+
+df_NM_site <- df_NM %>%
+  filter(site_id == 16786)
+df_peak_NM_site <- df_peak_NM %>%
+  filter(site_id == 16786)
+
+p7 = ggplot() +
+  geom_tile(data = df_NM_site,
+            aes(x=week, y=phenophase_description, fill=proportion)) +
+  theme(axis.text.x = element_text(hjust=-.7), axis.text.y = element_text(angle=90, hjust=.5),
+        axis.ticks.y = element_blank(), legend.position="left", panel.background = element_blank()) +
+  scale_fill_gradient(low="grey90", high=df_NM_site$color[1], (name="")) +
+  labs(x="", y="Proportion") +
+  scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+
+p8 = ggplot() +
+  geom_line(data = df_peak_NM_site, aes(x=week, y=open_flower_estimate),color="hotpink", linewidth = 1) +
+  theme(axis.text.y = element_text(), axis.text.x = element_text(hjust=-.7)) +
+  labs(x="", y="# Open Flowers", title="Cottonwood Gallery 3") +
+  scale_x_continuous(breaks=seq(1, 52, by=4.25), limits=c(1,52),
+                     labels=c("Jan","Feb","Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec", "")) 
+p8/p7
+
 
 
 # INTERANNUAL VARIATION
