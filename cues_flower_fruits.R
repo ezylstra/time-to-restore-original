@@ -2,6 +2,7 @@ library(rnpn)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
+library(leaflet)
 library(ggpmisc)
 library(ggpubr)
 library(ggforce)
@@ -97,12 +98,24 @@ df_complete_peak <- select(df_complete_peak, -c(2,43:46,52,53))
 colnames(df_complete_peak) <- sub("\\.x","",colnames(df_complete_peak))
 
 write.csv(df_complete_peak, file="16priority_spp_flower_fruit_w_peak_2009-2022.csv")
+
+#YOU CAN START HERE
+#if you want to reuse the same file with daymet integrated, TTR 16 spp, peak and ind pmetrics
 df <- (read.csv("16priority_spp_flower_fruit_w_peak_2009-2022.csv"))
 
+#data cleaning
 df = df %>% 
   subset(state != -9999) %>% #dropping no-state records - removes Midway Atoll Verbesina records w no climate data
   subset(numdays_since_prior_no != -9999) %>% #dropping no prior no
   subset(numdays_since_prior_no < 14) #dropping if prior no > 14 days prior
+
+#mapping data distribution by species
+pal <- colorFactor(palette = c('red','grey','yellow','purple','pink', 'orange','green','blue'), domain = df$common_name)
+
+leaflet(df) %>% 
+  addTiles() %>% 
+  addLegend("bottomright", pal = pal, values = ~common_name, title = "Species", opacity = 1) %>% 
+  addCircles(lng = ~df$longitude, lat = ~df$latitude, label = df$common_name, weight = 8, color = ~pal(common_name)) 
 
 #determining onsets by state to decide re making a table with mean and SE and range by state for TTR states
 onsets_by_state <- df %>%
@@ -121,10 +134,12 @@ print(unique(df$species))
 #set site id to factor so it can be used as a random factor in models
 df$site_id_factor <- as.factor(df$site_id)
 
-#create five lat bands named by major mid western cities for looking at temp sensitivity by lat
+#I did not use Lat bands in the end, but leaving the code in case
+#Create five lat bands named by major mid western cities for looking at temp sensitivity by lat
 df$lat_bans <- as.factor(cut(df$latitude, c(-Inf,30,35,40,45,Inf), c("Orlando", "Jackson", "OKCity", "Madison", "Bismark")))
 
-#explore records with observer conflicts - likely better to do this by spp/phenophase, bc some error-prone combos can be missed
+#explore records with observer conflicts
+#likely better to do this by spp/phenophase, bc some error-prone combos can be missed
 conflict_summary <- df %>%
   count(common_name, phenophase_category, observed_status_conflict_flag) %>%
   group_by(common_name, phenophase_category) %>%
@@ -148,13 +163,27 @@ peak_n_records <- df %>%
 #drop species with insufficient data
 df <- df  %>% subset(species_id %in% c(931,201:203,197,781,1163,916))
 
-#split the dataset to facilitate histograms and passing data to linear models
+#determine mean onset day of year by species and phenophase
+mean_onsets <- df  %>%
+  group_by(common_name, phenophase_description) %>%
+  summarize(mean_onset = mean(first_yes_doy))
+
+write.csv(mean_onsets, file="cues_analysis_mean_onsets.csv")
+
+#determine mean peak onset day of year by species and phenophase
+mean_peak_onsets <- df  %>%
+  group_by(common_name, phenophase_description) %>%
+  filter(!is.na(peak_onset_doy)) %>%
+  summarize(mean_peak_onset = mean(peak_onset_doy)) 
+
+write.csv(mean_peak_onsets, file="cues_analysis_mean_peak_onsets.csv")
+
+#split the dataset to facilitate histograms 
 #creates this list with 16 elements (one for each spp phenophase combo)
 s <- split(df, list(df$phenophase_description, df$common_name))
 
 #histograms for each species-phenophase combo 
 #why is xlab doubled?
-
 
 setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data/output")
 
@@ -174,7 +203,7 @@ for (i in c(1:16)) {
 dev.off()
 
 #look at distributions of DOY for phenophase onset and peak onset
-pdf("onset_peak_onset_histograms.pdf")
+pdf("onset_peak_histograms.pdf")
 par(mfcol = c(2,2))
 for (i in c(1:16)) {
   hist(s[[i]]$first_yes_doy, xlab = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description))
@@ -209,10 +238,10 @@ for (i in c(1:16)) {
 }
 dev.off()
 
-#outliers
+#outlier removal
 #figure out which number is which spp-pp combo
 summary(s)
-#removing peaks before day 200 for wild bergamot ripe fruit (no spring fruits)
+#removing ripe fruits before day 200 for wild bergamot (no spring fruits)
 s[[16]] <- s[[16]]  %>% subset(s[[16]]$first_yes_doy > 200)
 #removing open flowers in silver maple after day 250 (no fall flowers)
 s[[11]] <- s[[11]]  %>% subset(s[[11]]$first_yes_doy < 250)
@@ -220,29 +249,12 @@ s[[11]] <- s[[11]]  %>% subset(s[[11]]$first_yes_doy < 250)
 s[[12]] <- s[[12]]  %>% subset(s[[12]]$first_yes_doy < 200)
 #removing open flowers in Gooding's willow after day 250 (no fall flowers)
 s[[9]] <- s[[9]]  %>% subset(s[[9]]$first_yes_doy < 250)
+#removing ripe fruit onset and ripe fruit peak in common buttonbush before day 150 (no spring fruits)
+s[[4]] <- s[[4]]  %>% subset(s[[4]]$first_yes_doy > 150)
+s[[4]] <- s[[4]]  %>% subset(s[[4]]$peak_onset_doy > 150)
 
 #Simple Linear Regression
 #plot a linear model of first day that open flowers or ripe fruits were observed against climate variables
-
-#My solution that doesn't really do it, too manual still
-#function for x and y
-fun <- function(x,y) {
-  p <-  ggplot(data = s[[i]], aes(x = x, y = y)) +
-    stat_cor() +
-    geom_point() +
-    stat_smooth(method = "lm", formula = y~x , linewidth = 1) +
-    labs(title = paste(s[[i]]$common_name, " ",s[[i]]$phenophase_description)) 
-  plot(p)
-}
-
-#works - but only allows evaluating one predictor across the whole dataset, really
-#i want to look sequentially at each species-phenophase combo, first at all predictors by first_yes_doy
-#then all predictors by peak_onset_doy, then all predictors by peak_duration
-for (i in c(11)) {
-  y = s[[i]]$first_yes_doy
-  x = s[[i]]$tmax_fall
-  fun(x,y)
-}
 
 
 ################################################################################
@@ -288,8 +300,8 @@ predictors <- paste(rep(pvars, each = length(pseasons)),
 responses <- c("first_yes_doy", "peak_onset_doy", "peak_duration")
 
 # Make sure the output folder exists; if not, create it
-if (!dir.exists("output")) {
-  dir.create("output")
+if (!dir.exists("output/simple_linear_models")) {
+  dir.create("output/simple_linear_models")
 }
 
 # We iterate over all species in the list s, creating one plot at a time, 
@@ -324,7 +336,7 @@ for (species_i in 1:length(s)) {
                              replacement = "_",
                              x = species_df$phenophase_description[1]))
   message("Saving: ", nice_name, ", ", nice_phenophase)
-  filename <- paste0("output/", nice_name, "-", nice_phenophase, "-linear-models.pdf")
+  filename <- paste0("output/simple_linear_models", nice_name, "-", nice_phenophase, "-linear-models.pdf")
   pdf(filename)
   # Note this produces warnings if rows are removed because they contain 
   # missing (NA) values.
@@ -335,12 +347,12 @@ for (species_i in 1:length(s)) {
 # End Jeff solves my ggplot issues
 ################################################################################
 
+#data format for building linear mixed effect models
+#subset to the species / phenophase combo you are working with below 
+df1 <- subset(df, species_id == 201  & phenophase_id == 390 & peak_onset_doy > 150) #remember to repeat any cutting of fall flowering etc as above with S object
 
 
-df1 <- subset(df, species_id == 916  & phenophase_id == 501) #remember to repeat any cutting of fall flowering etc as above with S object
-
-
-#relevant predictors - https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=1084297830
+#relevant predictors tracking - https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=1084297830
 
 #Linear Mixed Effect Regression
 #Individual plants at the same site are likely to behave similarly - site should probably be a random effect
@@ -366,6 +378,7 @@ for (i in c(1:16)) {
 #as needed - review boxplots for effect of site
 boxplot(peak_duration~site_id, data = df1)
 
+#see cues_lmer_model-by-model.R for the code as run for each spp*pp combo
 #model 1, first yes predicted by X, with site as a random effect
 lmer1 <- lmer(peak_duration~tmax_spring + (1| site_id_factor), data = df1)
 summary(lmer1)
@@ -443,204 +456,6 @@ qqline(resid(lmer5))
 anova(lmer5, lmer4)
 
 #adding latitude as interactive w winter tmin does not improve p 0.3
-#also tried making lat interactive with spring tmax, also did not improve
-
-#visually explore a model with latitude
-p <- ggplot(df1, aes(x=tmin_summer, y=peak_duration, color=lat_bans)) +
-  geom_point() 
-  #stat_smooth(method = "lm", formula = y~x , linewidth = 1) 
-p 
-
-##GGPLOTS for simple linear regression
-
-df1 <- subset(df, species_id == 781 & phenophase_id == 390 & first_yes_doy < 200)
-
-peak_n_records <- df1 %>%
-  summarize(n_peak = sum(!is.na(peak_onset_doy))) 
 
 
-#FOR PHENOPHASE ONSET
-ggplot(data = df1, aes(x = tmin_spring, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_spring, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_winter, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_winter, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_fall, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_fall, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_summer, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_summer, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_spring, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_winter, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_fall, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_summer, y = first_yes_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-
-#FOR PEAK ONSET
-ggplot(data = df1, aes(x = tmin_spring, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_spring, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_winter, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_winter, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_fall, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_fall, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_summer, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_summer, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_winter, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_spring, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_fall, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_summer, y = peak_onset_doy)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-
-#FOR PEAK DURATION 
-ggplot(data = df1, aes(x = tmin_spring, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_spring, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_winter, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_winter, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_fall, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_fall, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmax_summer, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = tmin_summer, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_winter, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_spring, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_fall, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
-
-ggplot(data = df1, aes(x = prcp_summer, y = peak_duration)) +
-  stat_cor() +
-  geom_point() +
-  stat_smooth(method = "lm", formula = y~x , linewidth = 1)
 
