@@ -11,23 +11,21 @@ library(ggbreak)
 library(ggtext)
 rm(list= ls())
 
-#Notes
-#- One viz to ask their pref on peak flowering vs open flowers, vs both (assuming fl/buds not relevant)
+#this script is to develop the Time to Restore prototype and final graphs and calendars (Alyssa, Sept 2022)
+#prototypes are those show in this survey: https://docs.google.com/forms/d/10PciaU28JcNMyyBEXZB0KMWW6LxZdxxTFs4NuiwBiuQ/edit
+#code significantly updated by Travis Matlock (Summer 2023)
+#finals are those show in the TTR info sheets and story maps
 
-#- One  viz to ask about uncertainty - will be calendar with all the uncertainty combined with three sub vizes that show interannual, spatial and observer separately
-
-#- One viz to see prefs on community heatmap vs species heatmap + open_flowers_estimate curve 
-
-
-#this script is to develop the Time to Restore prototype calendars of type, heatmap (Alyssa, Sept 2022)
-#code significantly updated by Travis Matlock(May 2023)
 setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data")
 
-
+#helper call for species ids
 species_list <- npn_species()
+
 #Find Time to Restore - priority species - https://docs.google.com/spreadsheets/d/1WyxsCqZAAATIgZvR5ewNcZkaN2mumVi2d1vFw8I0HJo/edit#gid=0
 
+#create a vector with all the species IDs for Time to Restore priority species
 species <- c(186,197,200,201,202,203,204,207,224,781,845,916,931,1163,1167,1334)
+#and for phenophases
 phenophases = c(390, 501) # open flowers and ripe fruits
 
 df <- npn_download_status_data(request_source="Alyssa",
@@ -50,13 +48,9 @@ df <- df %>%
   filter(phenophase_status != -1) # -1 is when people reported ?
   #filter(!species_id %in% c(1167,1163,197,931,202))
 
+#set field types to facilitate visualization
 df$common_name <- as.factor(df$common_name)
 df$phenophase_status <- as.numeric(df$phenophase_status)
-
-#Ignore for now - filters used to get buttonbush observer variability plot
-  filter(individual_id == 141920) %>%
-  filter(observedby_person_id < 43389, observedby_person_id > 38000, observedby_person_id != 39173) %>%
-  filter(year !=2017, year !=2022)
 
 #calculate the proportion of records in to the total records by week for heatmaps
 df1 <- df %>%
@@ -65,7 +59,7 @@ df1 <- df %>%
   mutate(sum_pp = sum(phenophase_status)) %>%
   mutate(proportion = sum_pp/num_records) %>%
   ungroup() %>%
-  # Format data table for plots requested by Erin
+  # Format data labels 
   mutate(phenophase_description = ifelse(phenophase_description == "Ripe fruits", "Ripe seeds", "Open flowers")) %>%
   rowwise() %>%
   mutate(both_names = paste(common_name, " (", "*",genus, " ", species, "*", ")", sep="")) %>%
@@ -80,7 +74,7 @@ df_peak <- df_peak %>%
   mutate(week = lubridate::week(observation_date)) # %>%
   #filter(state == "LA")
 
-#Ignore for now, this code creates the option "Heatmaps for Both Measures" on the survey, that no one chose
+#This code creates the option "Heatmaps for Both Measures" on the survey, that no one liked
 df_peak <- df_peak %>%
   group_by(week) %>%
   mutate(num_records = n()) %>%
@@ -165,7 +159,7 @@ purrr::reduce(plots, `/`)
 (plots[[1]]+plots[[2]])/(plots[[3]]+plots[[4]])
 
 
- #SPECIES HEATMAP + OPEN_FLOWERS_ESTIMATE CURVE
+#SPECIES HEATMAP + OPEN_FLOWERS_ESTIMATE CURVE + iNAT RECORDS CURVE
 
 # NM showy milkweed, LA buttonbush, OK silver maple, TX sunflower
 

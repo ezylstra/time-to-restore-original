@@ -10,41 +10,48 @@ library(lme4)
 library(mblm)
 rm(list=ls())
 
-setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data")
+#This script performs analyses for the Time to Restore project to identify
+#climate cues for open flower and ripe fruit (seed) timing in priority species
+#of plants important for pollinators in the south central US.
 
-#This script performs preliminary analyses on the cues for blooming in pollinator resource
-#plants for the Time to Restore project. 
+DataFolder <- "~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data"
+OutputFolder <- "~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data/output"
 
-#helper call for species IDs
+setwd(DataFolder)
+
+#note that you can now skip to on line 111 if you wish to reuse the dataset already created
+
+#helper call to find species IDs
 species<-npn_species()
-species <- c(931,916,201,202,203,224,200,204,845,207,781,197,1334,1163,186,1167) # top 16
 
+#create a vector with the species IDs for the 16 priority species for the project
+species <- c(931,916,201,202,203,224,200,204,845,207,781,197,1334,1163,186,1167) 
 
-#download individual phenometric data, with supporting fields, including Daymet climate data (only thru 2021 currently - 2022 coming soon)
-#just 2022
+#download individual phenometric data for these species, with supporting fields
+#first get the 2022 data, which we'll handle differently bc daymet climate variables aren't yet in NPN database
 df2022 <- npn_download_individual_phenometrics(
   request_source = 'Alyssa', 
   years = c(2022), 
   species_ids = c(paste0(species)),
   additional_fields = c("Site_Name", "Network_Name", "Phenophase_Category", "Observed_Status_Conflict_Flag"),
   phenophase_ids = c(501,390), #open flowers and ripe fruits 
-  climate_data = TRUE
+  climate_data = TRUE #request climate data to double check, but know that it isn't there yet, will be blank
 )
 
 write.csv(df2022, file="16priority_spp_OF_RF_2022.csv")
 df2022 <- (read.csv("16priority_spp_OF_RF_2022.csv"))
 
-#create the list of stations needed to run daymet_download.R
+#create the list of unique stations from this file - needed to run daymet_download.R
 stations <- df2022 %>% distinct(site_id, latitude, longitude)
 
-#pre 2022 other years
+#download the rest of the years - 2009-2021
 df <- npn_download_individual_phenometrics(
   request_source = 'Alyssa', 
   years = c(2009:2021), 
   species_ids = c(paste0(species)),
   additional_fields = c("Site_Name", "Network_Name", "Phenophase_Category", "Observed_Status_Conflict_Flag"),
   phenophase_ids = c(501,390), #open flowers and ripe fruits 
-  climate_data = TRUE
+  climate_data = TRUE #this time we will get daymet climate variables
 )
 
 write.csv(df, file="16priority_spp_OF_RF_2009-2021.csv")
@@ -57,20 +64,20 @@ daymet2022 <- (read.csv("daymet_ref_file_2022_16spp.csv"))
 df2022_daymet <- merge(df2022, daymet2022, by = c("site_id"), all=TRUE)
 colnames(df2022_daymet)
 
-#remove unneeded columns (note - these are for the version from excel with the extra index added)
+#remove unneeded columns (note - these are for the version saved out as CSV with the extra index added)
 df2022_daymet <- select(df2022_daymet, -c(2,30:51))
 #remove the .y from the merged daymet file col names
 colnames(df2022_daymet) <- sub("\\.y","",colnames(df2022_daymet))
 
-#helper for figuring out mismatch between columns in two files
+#helper for figuring out mismatch between columns in two files (2009-2021 file and 2022 file)
 cols_intersection <- intersect(df2022_daymet, df)
 
 #remove unneeded cols in df (gdd, acc_prcp, daylength, that we aren't using, to facilitate the bind)
 colnames(df)
-df <- select(df, -c(29,30,35,36,41,42,47:49)) #web service
-#df <- select(df, -c(1,30,31,36,37,42,43,48:50)) #excel
+df <- select(df, -c(29,30,35,36,41,42,47:49)) #for when you've used web service directly
+#df <- select(df, -c(1,30,31,36,37,42,43,48:50)) #for when you've reloaded the CSV you saved out
 
-#row bind, FINALLY make a dataset with all the priority species data and daymet data for 2022
+#row bind, FINALLY make a dataset with all the priority species data and daymet data for all years
 df_complete <- rbind(df2022_daymet, df)
 
 write.csv(df_complete, file="16priority_spp_OF_RF_2009-2022.csv")
@@ -81,26 +88,33 @@ df_complete = df_complete %>%
   group_by(individual_id,first_yes_year, phenophase_id) %>%
   filter(first_yes_doy == min(first_yes_doy))
 
-#add a column to facilitate merging with peak data
+#add a unique identifier column to facilitate the next step - merging with peak data
 df_complete$ind_pp_year <- paste0(df_complete$individual_id, "_", df_complete$phenophase_id, "_", df_complete$first_yes_year)
 
 #read in the flower and fruit intensity data created using peak_phenometrics_flower.R and peak_phenometrics_fruit.R
 df_of_peak <- (read.csv("intensity_phenometrics_flower_16priority_spp_2013-2022.csv"))
 df_rf_peak <- (read.csv("intensity_phenometrics_fruit_16priority_spp_2013-2022.csv"))
+
+#combine the flower and fruit peak files into one dataset
 df_peak <- rbind(df_of_peak,df_rf_peak)
 
+#create the same unique identifier column as above in the peak dataset to facilitate the merge
 df_peak$ind_pp_year <- paste0(df_peak$individual_id, "_", df_peak$phenophase_id, "_", df_peak$year)
 
+#merge the individual phenometric and the peak phenometric data
 df_complete_peak <- merge(df_complete, df_peak, by = c("ind_pp_year"), all=TRUE)
 
+#clean up this file a bit - look at col names, remove some, remove .x
 colnames(df_complete_peak)
 df_complete_peak <- select(df_complete_peak, -c(2,43:46,52,53))
 colnames(df_complete_peak) <- sub("\\.x","",colnames(df_complete_peak))
 
+#write out this dataset - this is the complete dataset you'll use for rest of process here
 write.csv(df_complete_peak, file="16priority_spp_flower_fruit_w_peak_2009-2022.csv")
 
 #YOU CAN START HERE
-#if you want to reuse the same file with daymet integrated, TTR 16 spp, peak and ind pmetrics
+#as long as you are reusing the same file with daymet integrated, TTR 16 spp, peak and ind pmetrics
+#file is in github:https://github.com/alyssarosemartin/TimeToRestore/blob/main/data/16priority_spp_flower_fruit_w_peak_2009-2022.csv
 df <- (read.csv("16priority_spp_flower_fruit_w_peak_2009-2022.csv"))
 
 #data cleaning
@@ -108,6 +122,14 @@ df = df %>%
   subset(state != -9999) %>% #dropping no-state records - removes Midway Atoll Verbesina records w no climate data
   subset(numdays_since_prior_no != -9999) %>% #dropping no prior no
   subset(numdays_since_prior_no < 14) #dropping if prior no > 14 days prior
+
+#now that we've dropped all records with a prior no greater than 14 days, how does rest of distribution look?
+hist(df$numdays_since_prior_no)
+
+#what species are we working with here
+length(unique(df$common_name))
+print(unique(df$common_name))
+print(unique(df$species))
 
 #mapping data distribution by species
 pal <- colorFactor(palette = c('red','grey','yellow','purple','pink', 'orange','green','blue'), domain = df$common_name)
@@ -123,15 +145,9 @@ onsets_by_state <- df %>%
   group_by(common_name, phenophase_description, state) %>%
   summarise(n_first_yes = sum(!is.na(first_yes_doy))) 
 
-#now that we've dropped all records with a prior no greater than 14 days, how does rest of distribution look?
-hist(df$numdays_since_prior_no)
+#based on the above, decide not enough data
 
-#what species are we working with here
-length(unique(df$common_name))
-print(unique(df$common_name))
-print(unique(df$species))
-
-#set site id to factor so it can be used as a random factor in models
+#set site id to factor so it can be used as a random factor in the linear mixed effect models
 df$site_id_factor <- as.factor(df$site_id)
 
 #I did not use Lat bands in the end, but leaving the code in case
@@ -139,7 +155,7 @@ df$site_id_factor <- as.factor(df$site_id)
 df$lat_bans <- as.factor(cut(df$latitude, c(-Inf,30,35,40,45,Inf), c("Orlando", "Jackson", "OKCity", "Madison", "Bismark")))
 
 #explore records with observer conflicts
-#likely better to do this by spp/phenophase, bc some error-prone combos can be missed
+#likely better to do this in the future by spp/phenophase, bc some error-prone combos can be missed
 conflict_summary <- df %>%
   count(common_name, phenophase_category, observed_status_conflict_flag) %>%
   group_by(common_name, phenophase_category) %>%
@@ -154,7 +170,8 @@ onsets_n_records <- df %>%
   group_by(common_name, phenophase_description) %>% 
   summarise(n_first_yes =  sum(!is.na(first_yes_doy))) 
 
-#determine number of peak records (for some reason cannot make this and the above work as one table)
+#determine number of peak records 
+#for some reason cannot make this and the above work as one table
 #also use of sum here is unintuitive to me, but length doesn't work, it counts the NAs even if you put the !is.na
 peak_n_records <- df %>%
   group_by(common_name, phenophase_description) %>% 
@@ -179,13 +196,16 @@ mean_peak_onsets <- df  %>%
 write.csv(mean_peak_onsets, file="cues_analysis_mean_peak_onsets.csv")
 
 #split the dataset to facilitate histograms 
-#creates this list with 16 elements (one for each spp phenophase combo)
+#this creates a list with 16 elements (one for each spp phenophase combo)
 s <- split(df, list(df$phenophase_description, df$common_name))
 
 #histograms for each species-phenophase combo 
 #why is xlab doubled?
 
-setwd("~/Documents/My Files/USA-NPN/Data/Analysis/R_default/npn_analyses/TimetoRestore/Data/output")
+setwd(OutputFolder)
+
+#Create a series of PDFs in your output folder for looking at data distribution
+#by species and phenophase (using the split dataset)
 
 #look at distribution of records over the years and latitude (where and when data collected)
 pdf("latitude_histograms.pdf")
@@ -253,13 +273,12 @@ s[[9]] <- s[[9]]  %>% subset(s[[9]]$first_yes_doy < 250)
 s[[4]] <- s[[4]]  %>% subset(s[[4]]$first_yes_doy > 150)
 s[[4]] <- s[[4]]  %>% subset(s[[4]]$peak_onset_doy > 150)
 
-#Simple Linear Regression
-#plot a linear model of first day that open flowers or ripe fruits were observed against climate variables
 
 
 ################################################################################
-# Create multiple ggplots for each species with a variety of combinations of 
-# variables (Jeff Oliver's code)
+# Create simple linear regression ggplots for each species*phenophase, with  
+# the responses (onset, peak, duration) by the 12 climate predictor variables 
+#(Jeff Oliver's code)
 
 #' ggplot object of a linear model with a single predictor and single response
 #' 
@@ -348,14 +367,19 @@ for (species_i in 1:length(s)) {
 ################################################################################
 
 #data format for building linear mixed effect models
+#note that we are moving on from the split dataset, back to regular old df1
+#since you have to manually think about and build each model, it doesn't make sense to automate
+
 #subset to the species / phenophase combo you are working with below 
+#change this code every time you move on to model a new species phenophase combo
 df1 <- subset(df, species_id == 201  & phenophase_id == 390 & peak_onset_doy > 150) #remember to repeat any cutting of fall flowering etc as above with S object
 
-
-#relevant predictors tracking - https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=1084297830
+#using the simple linear model plots created above
+#identify the predictors with highest R2, and sig relationships
+#this is tracked here - https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=1084297830
 
 #Linear Mixed Effect Regression
-#Individual plants at the same site are likely to behave similarly - site should probably be a random effect
+#Individual plants at the same site are likely to behave similarly - site is a random effect
 #Plants are probably responding to multiple climatic conditions, daylength, and these responses may differ
 #by latitude based on local adaptation or other factors.
 #Compare models based on lowest REML or ML criterion at convergence, and using anova compare more to less complex models
@@ -379,6 +403,7 @@ for (i in c(1:16)) {
 boxplot(peak_duration~site_id, data = df1)
 
 #see cues_lmer_model-by-model.R for the code as run for each spp*pp combo
+
 #model 1, first yes predicted by X, with site as a random effect
 lmer1 <- lmer(peak_duration~tmax_spring + (1| site_id_factor), data = df1)
 summary(lmer1)
@@ -422,7 +447,6 @@ summary(lmer3)
 qqnorm(resid(lmer3))
 qqline(resid(lmer3))
 
-
 anova(lmer3, lmer1)
 
 #adding summer precip does not improve the model - p is 0.6
@@ -457,5 +481,5 @@ anova(lmer5, lmer4)
 
 #adding latitude as interactive w winter tmin does not improve p 0.3
 
-
-
+#these results go in the LMER Results tab of this spreadsheet
+#https://docs.google.com/spreadsheets/d/1vknYKsH1cqDSJGtwZIaRp1I3iFCjL55084kmbvJ_noI/edit#gid=0
